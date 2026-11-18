@@ -1,0 +1,69 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  # Recompila periodicamente para gerar as prévias de compartilhamento (Open Graph)
+  # das matérias e dos anúncios dos classificados publicados desde o último deploy.
+  # Atenção: schedule e repository_dispatch rodam no branch PADRÃO do repositório, que precisa
+  # ser o main (o único liberado no ambiente github-pages).
+  schedule:
+    - cron: '*/10 * * * *'
+  # Deploy imediato ao publicar: POST /repos/{dono}/{repo}/dispatches com {"event_type":"publicacao"}
+  repository_dispatch:
+    types: [publicacao]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Não cancela um deploy em andamento: o próximo fica na fila e já inclui todas as publicações novas
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          # reaproveita os pacotes baixados entre um deploy e outro (deploy mais rápido)
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build project
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Domínio próprio configurado em Settings > Pages (site na raiz do domínio)
+          CUSTOM_DOMAIN: www.noticiaem1minuto.com.br
+        run: |
+          npm run build
+          # Preserva o 404.html especializado gerado pelo build com suporte a rotas SPA
+          test -f dist/404.html || cp dist/index.html dist/404.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

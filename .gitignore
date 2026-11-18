@@ -1,0 +1,13 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+data_server_secrets.json
+data_*_cache.json
+data_*.json
+audit_results.json
+scripts/saida_importacao/

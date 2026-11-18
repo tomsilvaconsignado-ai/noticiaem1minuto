@@ -1,0 +1,2 @@
+-- Seed de matérias do Notícia em 1 Minuto (vazio: o portal começa sem matérias).
+-- Para gerar a partir de um backup: npx tsx scripts/build_articles_seed.ts <backup.json>

@@ -1,0 +1,296 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { INITIAL_ARTICLES } from '../src/data/initialData';
+import { Article, ClassifiedItem } from '../src/types/database';
+import { generateOpenGraphHtml, generateClassifiedOpenGraphHtml, escapeHtml, DEFAULT_PORTAL_DOMAIN, getArticlePathKey } from '../src/lib/seo';
+import { DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY } from '../src/lib/supabaseConfig';
+import sharp from 'sharp';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, '..');
+const distDir = path.resolve(rootDir, 'dist');
+
+// Lê todas as linhas de uma consulta da API REST do Supabase, em páginas (o Supabase devolve no máximo
+// 1000 por vez). Falha de consulta vira erro: sem os dados atuais o build não pode publicar o site,
+// senão as páginas das publicações recentes somem e as prévias voltam a sair sem foto e sem título.
+async function fetchAllRows(query: string, label: string): Promise<any[]> {
+  const url = (process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).trim().replace(/\/+$/, '');
+  const key = (process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
+  const pageSize = 1000;
+  const rows: any[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const resp = await fetch(`${url}/rest/v1/${query}&limit=${pageSize}&offset=${offset}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` }
+    });
+    if (!resp.ok) {
+      throw new Error(`Supabase respondeu ${resp.status} ao listar ${label}: ${await resp.text()}`);
+    }
+    const page: any[] = await resp.json();
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
+// Lê as matérias publicadas pela API REST do Supabase com a chave pública (anon)
+async function fetchPublishedArticles(): Promise<Article[]> {
+  const rows = await fetchAllRows(
+    'articles?select=id,title,subtitle,slug,content,category,image_url,video_url,is_video,author,views_count,created_at,updated_at,status&status=eq.published&order=created_at.desc,id.asc',
+    'as matérias'
+  );
+  return rows.map(r => ({
+    id: r.id,
+    title: r.title,
+    subtitle: r.subtitle || undefined,
+    slug: r.slug,
+    content: r.content,
+    category: r.category,
+    imageUrl: r.image_url,
+    videoUrl: r.video_url || undefined,
+    isVideo: Boolean(r.is_video),
+    viewsCount: r.views_count || 0,
+    author: r.author || 'Notícia em 1 Minuto',
+    createdAt: r.created_at,
+    updatedAt: r.updated_at || undefined,
+    status: r.status || 'published'
+  }));
+}
+
+// Lê os anúncios publicados e ainda válidos dos classificados (a leitura pública é liberada pelo RLS)
+async function fetchPublishedClassifieds(): Promise<ClassifiedItem[]> {
+  const rows = await fetchAllRows(
+    'classifieds?select=id,code,slug,title,description,section,type,category,price_type,price,city,state,images,status,created_at,updated_at,expires_at&status=eq.published&order=created_at.desc,id.asc',
+    'os classificados'
+  );
+  const now = Date.now();
+  return rows
+    .filter(r => r.slug && (!r.expires_at || new Date(r.expires_at).getTime() > now))
+    .map(r => ({
+      id: r.id,
+      code: r.code,
+      userId: '',
+      section: r.section,
+      type: r.type,
+      category: r.category || '',
+      title: r.title,
+      slug: r.slug,
+      description: r.description || '',
+      priceType: r.price_type || 'fixed',
+      price: r.price !== null && r.price !== undefined ? Number(r.price) : undefined,
+      city: r.city || '',
+      state: r.state || '',
+      advertiserName: '',
+      phone: '',
+      images: Array.isArray(r.images) ? r.images : [],
+      status: r.status,
+      viewsCount: 0,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at || undefined,
+      expiresAt: r.expires_at
+    }));
+}
+
+// Monta a página estática: metadados próprios no <head> e caminhos de assets a 2 níveis da raiz
+function buildStaticPage(baseHtml: string, metaBlock: string, routeScript: string): string {
+  let html = baseHtml
+    .replace(/<title>[\s\S]*?<\/title>/gi, '')
+    .replace(/<meta\s+name=["']description["'][\s\S]*?>/gi, '')
+    .replace(/<meta\s+property=["']og:[\s\S]*?>/gi, '')
+    .replace(/<meta\s+name=["']twitter:[\s\S]*?>/gi, '')
+    .replace(/<link\s+rel=["']canonical["'][\s\S]*?>/gi, '');
+
+  html = html.replace('<head>', `<head>\n${metaBlock}\n`);
+  html = html.replace('</head>', `  <script>${routeScript}</script>\n</head>`);
+
+  return html
+    .replace(/(src|href)=["']\.\/assets\//g, '$1="../../assets/')
+    .replace(/(src|href)=["']\.\/logo\.png["']/g, '$1="../../logo.png"')
+    .replace(/(src|href)=["']\.\/logo\.svg["']/g, '$1="../../logo.svg"')
+    .replace(/(src|href)=["']\.\/og-image\.png["']/g, '$1="../../og-image.png"')
+    .replace(/(src|href)=["']\/assets\//g, '$1="../../assets/');
+}
+
+// Grava a página em /<pasta>/<slug>/ (e na cópia /<repo>/... quando o site está em github.io/<repo>)
+function writeStaticPage(folders: string[], slug: string, html: string) {
+  const targets = folders.map(folder => path.resolve(distDir, folder, slug));
+  if (process.env.GITHUB_REPOSITORY && !process.env.CUSTOM_DOMAIN) {
+    const repo = process.env.GITHUB_REPOSITORY.split('/')[1];
+    if (repo && !repo.endsWith('.github.io')) {
+      folders.forEach(folder => targets.push(path.resolve(distDir, repo, folder, slug)));
+    }
+  }
+  for (const targetFolder of targets) {
+    fs.mkdirSync(targetFolder, { recursive: true });
+    fs.writeFileSync(path.resolve(targetFolder, 'index.html'), html, 'utf-8');
+  }
+}
+
+// ------------------------------------------------------------------
+// Imagem leve para a prévia do link (WhatsApp / Facebook)
+// O WhatsApp não mostra a foto quando o og:image passa de ~600 KB. Fotos pesadas ganham
+// uma cópia em /og/<nome>.jpg (até 1200 px, JPEG); a foto original do site não muda.
+// ------------------------------------------------------------------
+const OG_MAX_BYTES = 450 * 1024;
+const ogDir = path.resolve(distDir, 'og');
+
+async function lightPreviewImage(imageUrl: string | undefined, key: string, origin: string): Promise<string | undefined> {
+  if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  try {
+    const head = await fetch(imageUrl, { method: 'HEAD' });
+    const size = Number(head.headers.get('content-length') || 0);
+    if (head.ok && size > 0 && size <= OG_MAX_BYTES) return imageUrl;
+
+    const resp = await fetch(imageUrl);
+    if (!resp.ok) return imageUrl;
+    const input = Buffer.from(await resp.arrayBuffer());
+    if (input.length <= OG_MAX_BYTES) return imageUrl;
+
+    let quality = 80;
+    let output = await sharp(input).rotate().resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' }).jpeg({ quality, mozjpeg: true }).toBuffer();
+    while (output.length > OG_MAX_BYTES && quality > 50) {
+      quality -= 10;
+      output = await sharp(input).rotate().resize({ width: 1000, height: 1000, fit: 'inside', withoutEnlargement: true })
+        .flatten({ background: '#ffffff' }).jpeg({ quality, mozjpeg: true }).toBuffer();
+    }
+
+    fs.mkdirSync(ogDir, { recursive: true });
+    const fileName = `${key.replace(/[^a-z0-9-]/gi, '').slice(0, 120) || 'imagem'}.jpg`;
+    fs.writeFileSync(path.resolve(ogDir, fileName), output);
+    return `${origin}/og/${fileName}`;
+  } catch (e) {
+    console.warn(`[SSG Pre-render] Não foi possível gerar a imagem leve de ${key}:`, (e as Error).message);
+    return imageUrl;
+  }
+}
+
+// Executa tarefas com limite de simultaneidade (para não abrir centenas de downloads de uma vez)
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]);
+    }
+  }));
+  return results;
+}
+
+async function runPrerender() {
+  console.log('[SSG Pre-render] Iniciando pré-renderização estática das notícias para GitHub Pages...');
+
+  const templatePath = path.resolve(distDir, 'index.html');
+  if (!fs.existsSync(templatePath)) {
+    console.error('[SSG Pre-render] Erro: dist/index.html não foi encontrado. Execute vite build primeiro.');
+    process.exit(1);
+  }
+
+  const baseHtml = fs.readFileSync(templatePath, 'utf-8');
+
+  // 1. Carrega as notícias publicadas no Supabase (fonte oficial); sem elas, usa as iniciais e o cache local
+  let articles: Article[] = await fetchPublishedArticles();
+  if (articles.length > 0) {
+    console.log(`[SSG Pre-render] ${articles.length} matérias carregadas do Supabase.`);
+  } else {
+    articles = [...INITIAL_ARTICLES];
+  }
+  const cachePath = path.resolve(rootDir, 'data_articles_cache.json');
+  if (fs.existsSync(cachePath)) {
+    try {
+      const raw = fs.readFileSync(cachePath, 'utf-8');
+      const cached = JSON.parse(raw);
+      if (Array.isArray(cached) && cached.length > 0) {
+        const map = new Map<string, Article>();
+        articles.forEach(a => map.set(a.slug.toLowerCase(), a));
+        cached.forEach((a: Article) => map.set(a.slug.toLowerCase(), a));
+        articles = Array.from(map.values());
+      }
+    } catch (e) {
+      console.warn('[SSG Pre-render] Não foi possível ler cache local de notícias', e);
+    }
+  }
+
+  // 2. Determina a origem pública e base para metadados
+  let origin = DEFAULT_PORTAL_DOMAIN;
+  if (process.env.CUSTOM_DOMAIN) {
+    origin = `https://${process.env.CUSTOM_DOMAIN.replace(/\/+$/, '')}`;
+  } else if (process.env.GITHUB_REPOSITORY) {
+    const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+    if (owner && repo) {
+      origin = `https://${owner}.github.io/${repo}`;
+    }
+  }
+
+  console.log(`[SSG Pre-render] Domínio canônico configurado: ${origin}`);
+  console.log(`[SSG Pre-render] Total de matérias a processar: ${articles.length}`);
+
+  // Versões leves das fotos pesadas para a prévia do link
+  const previewImages = await mapLimit(articles, 8, a => lightPreviewImage(a.imageUrl, `noticia-${a.slug}`, origin));
+  const previewByArticle = new Map(articles.map((a, i) => [a.id, previewImages[i]]));
+  const lightCount = previewImages.filter(url => url && url.startsWith(`${origin}/og/`)).length;
+  console.log(`[SSG Pre-render] ${lightCount} fotos pesadas ganharam versão leve para a prévia do WhatsApp.`);
+
+  let generatedCount = 0;
+  // id -> título e foto de cada matéria com página estática (lido pelo vigia og-watch.yml)
+  const prerendered: Record<string, string> = {};
+
+  // 3. Para cada notícia publicada, gera o arquivo estático com Open Graph no head
+  for (const article of articles) {
+    if (article.status === 'draft') continue;
+
+    // Slug longo demais para nome de pasta (matérias antigas com o texto inteiro no slug): a página
+    // fica em /noticia/<id>/, o mesmo endereço que o botão de compartilhar usa para essas matérias
+    const metaBlock = generateOpenGraphHtml({ ...article, imageUrl: previewByArticle.get(article.id) || article.imageUrl }, origin);
+    const html = buildStaticPage(baseHtml, metaBlock, `window.__INITIAL_ARTICLE_SLUG__ = "${escapeHtml(article.slug)}";`);
+    writeStaticPage(['noticia', 'noticias'], getArticlePathKey(article), html);
+    prerendered[article.id] = `${article.title}\n${article.imageUrl || ''}`;
+
+    generatedCount++;
+  }
+
+  // Lista das matérias que já têm prévia: o vigia compara com o Supabase e publica o site de novo
+  // quando aparece matéria nova ou editada sem página estática
+  fs.writeFileSync(path.resolve(distDir, 'og-manifest.json'), JSON.stringify(prerendered), 'utf-8');
+
+  // 3.b Classificados: uma página por anúncio com a primeira foto, o título e o nome do portal
+  const classifieds = await fetchPublishedClassifieds();
+  let classifiedCount = 0;
+  for (const item of classifieds) {
+    if (Buffer.byteLength(item.slug, 'utf-8') > 200) continue;
+    const firstImage = (item.images || []).find(img => img && !img.startsWith('data:'));
+    const lightFirst = await lightPreviewImage(firstImage, `classificado-${item.slug}`, origin);
+    const previewItem = lightFirst && firstImage && lightFirst !== firstImage
+      ? { ...item, images: [lightFirst, ...item.images.filter(img => img !== firstImage)] }
+      : item;
+    const metaBlock = generateClassifiedOpenGraphHtml(previewItem, origin);
+    const html = buildStaticPage(baseHtml, metaBlock, `window.__INITIAL_CLASSIFIED_SLUG__ = "${escapeHtml(item.slug)}";`);
+    writeStaticPage(['classificado'], item.slug, html);
+    classifiedCount++;
+  }
+  console.log(`[SSG Pre-render] ${classifiedCount} anúncios dos classificados pré-renderizados em /classificado/.`);
+
+  // 4. Garante que .nojekyll e 404.html estejam presentes no dist
+  const nojekyllSrc = path.resolve(rootDir, 'public/.nojekyll');
+  const nojekyllDest = path.resolve(distDir, '.nojekyll');
+  if (fs.existsSync(nojekyllSrc) && !fs.existsSync(nojekyllDest)) {
+    fs.copyFileSync(nojekyllSrc, nojekyllDest);
+  } else if (!fs.existsSync(nojekyllDest)) {
+    fs.writeFileSync(nojekyllDest, '', 'utf-8');
+  }
+
+  const notFoundSrc = path.resolve(rootDir, 'public/404.html');
+  const notFoundDest = path.resolve(distDir, '404.html');
+  if (fs.existsSync(notFoundSrc) && !fs.existsSync(notFoundDest)) {
+    fs.copyFileSync(notFoundSrc, notFoundDest);
+  }
+
+  console.log(`[SSG Pre-render] Sucesso! ${generatedCount} notícias pré-renderizadas com Open Graph completo em /noticia/ e /noticias/.`);
+  console.log('[SSG Pre-render] Arquivos .nojekyll e 404.html verificados e configurados para GitHub Pages.');
+}
+
+runPrerender().catch(err => {
+  console.error('[SSG Pre-render] Falha crítica:', err);
+  process.exit(1);
+});

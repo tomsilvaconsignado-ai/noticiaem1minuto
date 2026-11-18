@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      // Sempre na versão segura (https): sem ela o navegador não permite instalar o aplicativo
+      // nem usar login com segurança. O GitHub Pages também redireciona com "Enforce HTTPS".
+      (function () {
+        var l = window.location;
+        if (l.protocol === 'http:' && l.hostname !== 'localhost' && l.hostname !== '127.0.0.1' && !/^192\.168\./.test(l.hostname)) {
+          l.replace('https://' + l.host + l.pathname + l.search + l.hash);
+        }
+      })();
+    </script>
+    <script>
+      // Se o arquivo principal do site não carregar (ex.: página antiga guardada no cache do
+      // navegador depois de uma atualização), recarrega uma vez buscando a versão mais nova.
+      // Se ainda assim falhar, troca o "Carregando" por um botão de tentar novamente.
+      (function () {
+        var KEY = 'n1m_reload_attempt';
+        var showRetry = function () {
+          var root = document.getElementById('root');
+          if (!root || root.innerText.indexOf('Carregando Notícia em 1 Minuto') === -1) return;
+          root.innerHTML = '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;background:#f8fafc;color:#334155;text-align:center;padding:24px">'
+            + '<p style="font-size:15px;font-weight:700;margin:0">Não foi possível carregar o Notícia em 1 Minuto.</p>'
+            + '<p style="font-size:13px;margin:0">Verifique sua conexão e tente novamente.</p>'
+            + '<button onclick="location.reload()" style="margin-top:8px;padding:10px 20px;border:0;border-radius:10px;background:#0057b8;color:#fff;font-weight:700;cursor:pointer">Tentar novamente</button></div>';
+        };
+        var reloadFresh = function () {
+          try {
+            if (sessionStorage.getItem(KEY)) { showRetry(); return; }
+            sessionStorage.setItem(KEY, '1');
+          } catch (e) { showRetry(); return; }
+          var url = new URL(window.location.href);
+          url.searchParams.set('_v', String(Date.now()));
+          window.location.replace(url.toString());
+        };
+        window.addEventListener('error', function (e) {
+          var t = e && e.target;
+          if (t && t.tagName === 'SCRIPT' && /\/assets\/index-[^/]*\.js/.test(t.src || '')) reloadFresh();
+        }, true);
+        window.addEventListener('load', function () {
+          // Tira o parâmetro técnico da recarga da barra de endereço
+          try {
+            var current = new URL(window.location.href);
+            if (current.searchParams.has('_v')) {
+              current.searchParams.delete('_v');
+              window.history.replaceState(window.history.state, '', current.pathname + current.search + current.hash);
+            }
+          } catch (e) {}
+          setTimeout(showRetry, 30000);
+        });
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notícia em 1 Minuto - Informação rápida, confiável e sem enrolação</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="%BASE_URL%icons/favicon-32.png" />
+    <!-- Aplicativo instalável (PWA) -->
+    <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
+    <meta name="theme-color" content="#0057b8" />
+    <link rel="apple-touch-icon" href="%BASE_URL%icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Notícia em 1 Minuto" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="description" content="Notícias de última hora, política, esportes e entretenimento de Sergipe e região. O portal de notícias mais completo da região." />
+    <meta name="author" content="Notícia em 1 Minuto" />
+    <meta property="og:site_name" content="Notícia em 1 Minuto" />
+    <meta property="og:title" content="Notícia em 1 Minuto - Informação rápida, confiável e sem enrolação" />
+    <meta property="og:description" content="O portal de notícias mais completo da região. Informação com credibilidade e rapidez em Sergipe." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-portal.png" />
+    <meta property="og:image:secure_url" content="%VITE_SITE_URL%/og-portal.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Logomarca do Notícia em 1 Minuto" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Notícia em 1 Minuto - Informação rápida, confiável e sem enrolação" />
+    <meta name="twitter:description" content="O portal de notícias mais completo da região. Notícias de última hora de Sergipe e região." />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og-portal.png" />
+    
+    <!-- Script de restauração de rotas SPA vindas do 404.html no GitHub Pages -->
+    <script type="text/javascript">
+      (function(l) {
+        if (l.search && l.search[1] === 'p') {
+          var params = new URLSearchParams(l.search);
+          var pRoute = params.get('p');
+          if (pRoute) {
+            params.delete('p');
+            var remainingSearch = params.toString();
+            var targetSearch = remainingSearch ? '?' + remainingSearch : '';
+            var basePath = l.pathname.replace(/\/$/, '');
+            var fullRoute = (pRoute.indexOf('/') === 0 ? pRoute : '/' + pRoute);
+            window.history.replaceState(null, null, basePath + fullRoute + targetSearch + l.hash);
+          }
+        }
+      })(window.location);
+    </script>
+  </head>
+  <body class="bg-gray-50 text-gray-900 antialiased font-sans selection:bg-marca selection:text-white">
+    <div id="root">
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; color: #334155;">
+        <div style="width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #0057b8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;"></div>
+        <p style="font-size: 14px; font-weight: 600;">Carregando Notícia em 1 Minuto...</p>
+        <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

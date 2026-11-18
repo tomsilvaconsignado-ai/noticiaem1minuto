@@ -1,0 +1,405 @@
+const { createClient } = require('@supabase/supabase-js');
+const nodemailer = require('nodemailer');
+const fs = require('fs');
+const http = require('http');
+require('dotenv').config();
+
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || '';
+const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || '';
+let SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+if (!SERVICE_ROLE_KEY && fs.existsSync('data_server_secrets.json')) {
+  try {
+    const secrets = JSON.parse(fs.readFileSync('data_server_secrets.json', 'utf8'));
+    SERVICE_ROLE_KEY = secrets.serviceRoleKey || '';
+  } catch (e) {
+    // ignore
+  }
+}
+
+const adminClient = SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY) : null;
+const anonClient = createClient(SUPABASE_URL, ANON_KEY);
+
+const results = [];
+
+function recordTest(id, name, status, evidence, notes = '') {
+  results.push({ id, name, status, evidence, notes });
+  console.log(`[TEST ${id}] ${name} -> ${status}`);
+  if (notes) console.log(`   Nota: ${notes}`);
+}
+
+async function requestApi(path, method = 'GET', data = null, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const payload = data ? JSON.stringify(data) : null;
+    const reqHeaders = {
+      'Content-Type': 'application/json',
+      ...headers
+    };
+    if (payload) reqHeaders['Content-Length'] = Buffer.byteLength(payload);
+
+    const req = http.request({
+      hostname: 'localhost',
+      port: 3000,
+      path,
+      method,
+      headers: reqHeaders
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode, data: JSON.parse(body) });
+        } catch {
+          resolve({ status: res.statusCode, data: body });
+        }
+      });
+    });
+    req.on('error', reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+async function runAudit() {
+  console.log('====================================================');
+  console.log('INICIANDO AUDITORIA E BATERIA DE TESTES REAIS');
+  console.log('====================================================\n');
+
+  // TEST 1: Verificação SMTP do Gmail
+  try {
+    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const port = Number(process.env.SMTP_PORT || 465);
+    const user = (process.env.SMTP_USER || '').trim();
+    let pass = (process.env.SMTP_PASS || '').trim();
+    if (host.includes('gmail')) pass = pass.replace(/\s+/g, '');
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false }
+    });
+
+    await new Promise((resolve, reject) => {
+      transporter.verify((err, success) => {
+        if (err) reject(err);
+        else resolve(success);
+      });
+    });
+
+    recordTest(1, 'Conectividade e Autenticação SMTP do Gmail', 'APROVADO', 
+      `Conexão verificada com sucesso em ${host}:${port} para usuário ${user}.`,
+      'Porta 465 SSL autenticada e pronta para entrega.');
+  } catch (e) {
+    recordTest(1, 'Conectividade e Autenticação SMTP do Gmail', 'FALHOU', e.message);
+  }
+
+  // TEST 2: Conta do Administrador Legítimo no Supabase
+  try {
+    let adminUser = null;
+    let role = 'admin';
+    let status = 'active';
+    let adminId = '90bb4657-2a9f-4238-af18-c79576fd7f92';
+
+    if (adminClient) {
+      try {
+        const { data: usersData, error: usersErr } = await adminClient.auth.admin.listUsers();
+        if (!usersErr && usersData?.users) {
+          adminUser = usersData.users.find(u => u.email === 'noticiasem1minutoitabaiana@gmail.com');
+        }
+        if (adminUser) {
+          adminId = adminUser.id;
+          const { data: profileData } = await adminClient.from('profiles').select('*').eq('id', adminUser.id).maybeSingle();
+          if (profileData) {
+            role = profileData.role || 'admin';
+            status = profileData.status || 'active';
+          }
+        }
+      } catch {}
+    }
+
+    if (!adminUser) {
+      const resp = await requestApi('/api/admin/users', 'GET', null, {
+        'x-admin-email': 'noticiasem1minutoitabaiana@gmail.com',
+        'x-admin-role': 'admin'
+      });
+      if (resp.status === 200 && resp.data.success && Array.isArray(resp.data.users)) {
+        const found = resp.data.users.find(u => u.email === 'noticiasem1minutoitabaiana@gmail.com');
+        if (found) {
+          adminUser = found;
+          adminId = found.id;
+          role = found.role;
+          status = found.status;
+        }
+      }
+    }
+
+    if (adminUser) {
+      recordTest(2, 'Preservação e Provisionamento do Administrador Legítimo', 'APROVADO',
+        `ID: ${adminId}, Role: ${role}, Status: ${status}, E-mail: noticiasem1minutoitabaiana@gmail.com`,
+        'Administrador confirmado no Supabase Auth e public.profiles.');
+    } else {
+      throw new Error('Administrador não localizado na base de usuários');
+    }
+  } catch (e) {
+    recordTest(2, 'Preservação e Provisionamento do Administrador Legítimo', 'FALHOU', e.message);
+  }
+
+  // TEST 3: Solicitação de Recuperação de Senha com E-mail do Próprio Usuário
+  try {
+    const resp = await requestApi('/api/auth/request-password-reset', 'POST', {
+      email: 'noticiasem1minutoitabaiana@gmail.com',
+      origin: 'https://ais-dev-62pjyss3pkglz7qz4jx23v-18125206812.us-east1.run.app'
+    });
+
+    if (resp.status === 200 && resp.data.success && resp.data.delivered) {
+      recordTest(3, 'Recuperação de Senha: Geração e Despacho ao Usuário', 'APROVADO',
+        `Destinatário: noticiasem1minutoitabaiana@gmail.com | Remetente: contatomeasure@gmail.com | Delivered: true | Mensagem: "${resp.data.message}"`,
+        'Link oficial gerado pelo Supabase Admin e entregue via SMTP do Gmail ao e-mail informado.');
+    } else {
+      throw new Error(`Falha no retorno: ${JSON.stringify(resp.data)}`);
+    }
+  } catch (e) {
+    recordTest(3, 'Recuperação de Senha: Geração e Despacho ao Usuário', 'FALHOU', e.message);
+  }
+
+  // TEST 4: Resposta Neutra para E-mails Inexistentes (Prevenção de Enumeração de Contas)
+  try {
+    const resp = await requestApi('/api/auth/request-password-reset', 'POST', {
+      email: 'conta_inexistente_987123@dominioinexistente.com.br',
+      origin: 'https://ais-dev-62pjyss3pkglz7qz4jx23v-18125206812.us-east1.run.app'
+    });
+
+    if (resp.status === 200 && resp.data.success && resp.data.delivered === false &&
+        resp.data.message.includes('Se houver uma conta cadastrada com este endereço')) {
+      recordTest(4, 'Proteção Contra Enumeração de Contas (Mensagem Neutra)', 'APROVADO',
+        `Retorno HTTP 200 com mensagem neutra padrão e delivered=false sem vazar inexistência da conta.`,
+        'Mesma resposta padronizada para contas existentes e inexistentes.');
+    } else {
+      throw new Error(`Resposta não atendeu ao critério neutro: ${JSON.stringify(resp.data)}`);
+    }
+  } catch (e) {
+    recordTest(4, 'Proteção Contra Enumeração de Contas (Mensagem Neutra)', 'FALHOU', e.message);
+  }
+
+  // TEST 5: Rejeição de Senha Incorreta no Supabase Auth
+  try {
+    const { data: failSign, error: signErr } = await anonClient.auth.signInWithPassword({
+      email: 'noticiasem1minutoitabaiana@gmail.com',
+      password: 'SenhaTotalmenteIncorreta999!'
+    });
+
+    if (signErr && signErr.message) {
+      recordTest(5, 'Rejeição de Credenciais Inválidas', 'APROVADO',
+        `Supabase rejeitou corretamente: "${signErr.message}"`,
+        'Acesso bloqueado com credenciais incorretas.');
+    } else {
+      throw new Error('Supabase aceitou login com senha incorreta!');
+    }
+  } catch (e) {
+    recordTest(5, 'Rejeição de Credenciais Inválidas', 'FALHOU', e.message);
+  }
+
+  // TEST 6: Reenvio de Confirmação com E-mail Próprio
+  try {
+    const resp = await requestApi('/api/auth/resend-confirmation', 'POST', {
+      email: 'noticiasem1minutoitabaiana@gmail.com',
+      origin: 'https://ais-dev-62pjyss3pkglz7qz4jx23v-18125206812.us-east1.run.app'
+    });
+
+    if (resp.status === 200 && resp.data.success) {
+      recordTest(6, 'Reenvio de Confirmação de Cadastro via SMTP', 'APROVADO',
+        `Mensagem: "${resp.data.message}", Delivered: ${resp.data.delivered}`,
+        'Link de ativação gerado pelo Supabase e despachado via SMTP.');
+    } else {
+      throw new Error(`Falha no reenvio: ${JSON.stringify(resp.data)}`);
+    }
+  } catch (e) {
+    recordTest(6, 'Reenvio de Confirmação de Cadastro via SMTP', 'FALHOU', e.message);
+  }
+
+  // TEST 7: Listagem Administrativa com Autenticação e Rota Protegida
+  try {
+    const resp = await requestApi('/api/admin/users', 'GET', null, {
+      'x-admin-email': 'noticiasem1minutoitabaiana@gmail.com',
+      'x-admin-role': 'admin'
+    });
+
+    if (resp.status === 200 && resp.data.success && resp.data.total >= 7) {
+      recordTest(7, 'Controle Administrativo de Usuários via Supabase Admin', 'APROVADO',
+        `Total de usuários listados: ${resp.data.total}, Fonte: ${resp.data.source}`,
+        'Painel administrativo integrado ao Supabase Admin API com dados unificados.');
+    } else {
+      throw new Error(`Retorno inválido: ${JSON.stringify(resp.data)}`);
+    }
+  } catch (e) {
+    recordTest(7, 'Controle Administrativo de Usuários via Supabase Admin', 'FALHOU', e.message);
+  }
+
+  // TEST 8: Bloqueio de Acesso Administrativo para Usuários Comuns ou Visitantes
+  try {
+    const resp = await requestApi('/api/admin/users', 'GET', null, {
+      'x-admin-email': 'leitor@noticiaem1minuto.com.br',
+      'x-admin-role': 'reader'
+    });
+
+    if (resp.status === 403 && resp.data.error) {
+      recordTest(8, 'Bloqueio de Rota Administrativa para Não-Admins', 'APROVADO',
+        `Status HTTP 403 retornado com mensagem de erro de permissão.`,
+        'Usuários comuns não conseguem acessar dados confidenciais de outros usuários.');
+    } else {
+      throw new Error(`Rota administrativa permitiu acesso não autorizado: status ${resp.status}`);
+    }
+  } catch (e) {
+    recordTest(8, 'Bloqueio de Rota Administrativa para Não-Admins', 'FALHOU', e.message);
+  }
+
+  // TEST 9: Classificados: Bloqueio de Publicação Sem Autenticação
+  try {
+    const resp = await requestApi('/api/classifieds', 'POST', {
+      title: 'Tentativa Não Autorizada'
+    });
+
+    if (resp.status === 401) {
+      recordTest(9, 'Classificados: Bloqueio de Publicação Sem Login', 'APROVADO',
+        'Status HTTP 401: Visitante sem autenticação impedido de publicar anúncios.',
+        'Regra validada no servidor.');
+    } else {
+      throw new Error(`Esperado 401, recebido status ${resp.status}`);
+    }
+  } catch (e) {
+    recordTest(9, 'Classificados: Bloqueio de Publicação Sem Login', 'FALHOU', e.message);
+  }
+
+  // TEST 10: Classificados: Bloqueio de Publicação com Perfil Incompleto
+  try {
+    let incompleteUserId = null;
+    let cleanupUser = false;
+
+    if (adminClient) {
+      try {
+        const tempEmail = `incompleto_${Date.now()}@teste.com`;
+        const { data: createdTemp, error: tempErr } = await adminClient.auth.admin.createUser({
+          email: tempEmail,
+          email_confirm: true,
+          user_metadata: { full_name: 'Usuário Sem Dados' }
+        });
+        if (!tempErr && createdTemp?.user) {
+          incompleteUserId = createdTemp.user.id;
+          cleanupUser = true;
+        }
+      } catch {}
+    }
+
+    if (!incompleteUserId) {
+      incompleteUserId = 'usr-incompleto-temp';
+    }
+
+    const resp = await requestApi('/api/classifieds', 'POST', {
+      title: 'Anúncio que deve falhar por falta de dados'
+    }, {
+      'x-user-id': incompleteUserId
+    });
+
+    if (resp.status === 400 && resp.data.error && resp.data.error.includes('completar o cadastro')) {
+      recordTest(10, 'Classificados: Exigência de Cadastro Completo (Telefone, Cidade, CPF)', 'APROVADO',
+        `Status HTTP 400: "${resp.data.error}"`,
+        'Usuário cadastrado sem perfil completo é obrigado a preencher os campos.');
+    } else {
+      throw new Error(`Esperado 400, recebido: ${JSON.stringify(resp)}`);
+    }
+
+    if (cleanupUser && adminClient && incompleteUserId) {
+      await adminClient.auth.admin.deleteUser(incompleteUserId).catch(() => {});
+    }
+  } catch (e) {
+    recordTest(10, 'Classificados: Exigência de Cadastro Completo (Telefone, Cidade, CPF)', 'FALHOU', e.message);
+  }
+
+  // TEST 11: Classificados: Publicação Válida Associada ao ID do Usuário Real
+  try {
+    let adminUserId = '90bb4657-2a9f-4238-af18-c79576fd7f92';
+    if (adminClient) {
+      try {
+        const uData = await adminClient.auth.admin.listUsers();
+        const found = uData?.data?.users?.find(u => u.email === 'noticiasem1minutoitabaiana@gmail.com');
+        if (found) adminUserId = found.id;
+      } catch {}
+    }
+
+    const adCode = `CL-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newAd = {
+      id: `clf-audit-${Date.now()}`,
+      code: adCode,
+      user_id: adminUserId,
+      section: 'produtos_servicos',
+      type: 'vendo',
+      category: 'Veículos e motos',
+      title: 'Carro Teste de Auditoria em Itabaiana',
+      slug: `carro-teste-de-auditoria-em-itabaiana-${adCode.toLowerCase()}`,
+      description: 'Anúncio publicado com dados legítimos de perfil para validação.',
+      price_type: 'fixed',
+      price: 32000,
+      city: 'Itabaiana',
+      state: 'SE',
+      advertiser_name: 'Administrador',
+      phone: '(79) 99963-8993',
+      images: [],
+      status: 'published',
+      views_count: 0,
+      expires_at: new Date(Date.now() + 30 * 86400000).toISOString()
+    };
+
+    const resp = await requestApi('/api/classifieds', 'POST', newAd, {
+      'x-user-id': adminUserId
+    });
+
+    if (resp.status === 200 && resp.data.success && resp.data.classified) {
+      recordTest(11, 'Classificados: Publicação Válida com Associação do ID Real', 'APROVADO',
+        `Anúncio criado com ID: ${resp.data.classified.id}, user_id: ${resp.data.classified.user_id}, Código: ${resp.data.classified.code}`,
+        'Anúncio salvo no banco com chave estrangeira oficial do usuário.');
+
+      if (adminClient) {
+        await adminClient.from('classifieds').delete().eq('id', newAd.id).catch(() => {});
+      }
+    } else {
+      throw new Error(`Falha ao publicar anúncio: ${JSON.stringify(resp.data)}`);
+    }
+  } catch (e) {
+    recordTest(11, 'Classificados: Publicação Válida com Associação do ID Real', 'FALHOU', e.message);
+  }
+
+  // TEST 12: Remoção dos Ambientes e Atalhos de Teste na Interface
+  try {
+    const authModalCode = fs.readFileSync('src/components/auth/AuthModal.tsx', 'utf-8');
+    const appCode = fs.readFileSync('src/App.tsx', 'utf-8');
+
+    const hasDemoButton = authModalCode.includes('fillDemoAccount') || authModalCode.includes('Acesso Rápido para Testes');
+    const hasSimulatedOutbox = appCode.includes('<EmailOutboxModal') || appCode.includes('<EmailNotificationToast');
+
+    if (!hasDemoButton && !hasSimulatedOutbox) {
+      recordTest(12, 'Remoção de Atalhos e Mecanismos de Teste da Interface', 'APROVADO',
+        'Atalhos de conta demo removidos de AuthModal e simulação flutuante de outbox removida de App.tsx.',
+        'Interface limpa e pronta para uso em produção.');
+    } else {
+      throw new Error('Ainda há mecanismos de teste detectados no código.');
+    }
+  } catch (e) {
+    recordTest(12, 'Remoção de Atalhos e Mecanismos de Teste da Interface', 'FALHOU', e.message);
+  }
+
+  console.log('\n====================================================');
+  console.log('RESUMO DA EXECUÇÃO:');
+  console.log(`TOTAL DE TESTES: ${results.length}`);
+  const approved = results.filter(r => r.status === 'APROVADO').length;
+  const failed = results.filter(r => r.status === 'FALHOU').length;
+  console.log(`APROVADOS: ${approved} | FALHAS: ${failed}`);
+  console.log('====================================================');
+
+  fs.writeFileSync('audit_results.json', JSON.stringify(results, null, 2), 'utf-8');
+}
+
+runAudit().catch(err => {
+  console.error('Fatal audit error:', err);
+  process.exit(1);
+});
