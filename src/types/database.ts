@@ -159,13 +159,22 @@ export interface CategoryItem {
   slug: CategorySlug;
 }
 
-export type AdPlacement = 'header' | 'feed' | 'sidebar' | 'article' | 'footer' | 'sidebar_300x900' | 'sidebar_300x600' | 'sidebar_300x300_2' | 'sidebar_300x300_3';
+export type AdPlacement = 'header' | 'feed' | 'sidebar' | 'article' | 'footer' | 'sidebar_300x900' | 'sidebar_300x600' | 'sidebar_300x600_2' | 'sidebar_300x300_2' | 'sidebar_300x300_3';
 
 // Painéis 300x300 adicionais da coluna lateral (abaixo do primeiro): cada um tem anúncios,
 // temporizador e pausa próprios, configurados pelo espaço (placement) e não pelo formato
 export const EXTRA_SIDEBAR_SQUARE_PLACEMENTS = ['sidebar_300x300_2', 'sidebar_300x300_3'] as const;
 export const isExtraSidebarSquare = (placement?: string): boolean =>
   (EXTRA_SIDEBAR_SQUARE_PLACEMENTS as readonly string[]).includes(placement || '');
+
+// Painel vertical 300x600 adicional (abaixo do primeiro), com anúncios, temporizador e pausa próprios
+export const EXTRA_SIDEBAR_VERTICAL_PLACEMENTS = ['sidebar_300x600_2'] as const;
+export const isExtraSidebarVertical = (placement?: string): boolean =>
+  (EXTRA_SIDEBAR_VERTICAL_PLACEMENTS as readonly string[]).includes(placement || '');
+
+// Qualquer painel lateral extra (configurado pelo espaço, fora dos carrosséis principais)
+export const isExtraSidebarSlot = (placement?: string): boolean =>
+  isExtraSidebarSquare(placement) || isExtraSidebarVertical(placement);
 export type AdFormat = '300x300' | '300x900' | '300x600' | '728x90' | '970x90';
 export type AdStatus = 'active' | 'paused' | 'ended';
 export type PlacementMode = 'fixed' | 'carousel';

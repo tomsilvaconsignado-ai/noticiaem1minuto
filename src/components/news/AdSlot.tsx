@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play, ExternalLink } from 'lucide-react';
-import { AdItem, AdPlacement, AdFormat, PlacementSetting, FormatCarouselSetting, isExtraSidebarSquare } from '../../types/database';
+import { AdItem, AdPlacement, AdFormat, PlacementSetting, FormatCarouselSetting, isExtraSidebarSlot, isExtraSidebarVertical } from '../../types/database';
 import { adsService } from '../../lib/supabase';
 
 interface AdSlotProps {
@@ -43,7 +43,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({
     propSingleAd?.adFormat ||
     (propAdsList && propAdsList.length > 0 ? propAdsList[0].adFormat : undefined) ||
     (placement === 'sidebar_300x900' ? '300x600' :
-     placement === 'sidebar_300x600' ? '300x600' :
+     placement === 'sidebar_300x600' || isExtraSidebarVertical(placement) ? '300x600' :
      placement === 'sidebar' ? '300x300' :
      placement === 'article' ? '300x300' :
      placement === 'header' ? '728x90' :
@@ -58,9 +58,9 @@ export const AdSlot: React.FC<AdSlotProps> = ({
     return adsService.getFormatSettings()[fKey] || { format: '300x300', durationSeconds: 5, isPaused: false, mode: 'carousel' };
   });
 
-  // Os formatos laterais seguem o temporizador do formato, exceto os painéis 300x300 extras,
-  // que têm temporizador e pausa próprios no espaço
-  const isFormatBased = (determinedFormat === '300x300' || determinedFormat === '300x600') && !isExtraSidebarSquare(placement);
+  // Os formatos laterais seguem o temporizador do formato, exceto os painéis extras
+  // (300x300 2 e 3, 300x600 2), que têm temporizador e pausa próprios no espaço
+  const isFormatBased = (determinedFormat === '300x300' || determinedFormat === '300x600') && !isExtraSidebarSlot(placement);
 
   // Lista de anúncios
   const [slotAds, setSlotAds] = useState<AdItem[]>(() => {

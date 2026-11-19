@@ -3,7 +3,7 @@ import {
   Article, AdItem, AdPlacement, AdFormat, FormatCarouselSetting, PlacementSetting, UserProfile, UserRole, UserStatus, UserAuditLog, Comment, NewsletterSubscriber, NotificationItem,
   ClassifiedItem, ClassifiedCategory, ClassifiedReport, ClassifiedsSettings,
   ClassifiedSection, ClassifiedType, ClassifiedStatus, PortalSettings, PrintEdition,
-  isExtraSidebarSquare
+  isExtraSidebarSquare, isExtraSidebarVertical
 } from '../types/database';
 import { INITIAL_ARTICLES, INITIAL_ADS } from '../data/initialData';
 import {
@@ -1118,6 +1118,7 @@ export const DEFAULT_PLACEMENT_SETTINGS: Record<AdPlacement, PlacementSetting> =
   sidebar: { placement: 'sidebar', mode: 'carousel', isPaused: false, defaultDurationSeconds: 5, preferredFormat: '300x300' },
   sidebar_300x900: { placement: 'sidebar_300x900', mode: 'carousel', isPaused: false, defaultDurationSeconds: 8, preferredFormat: '300x600' },
   sidebar_300x600: { placement: 'sidebar_300x600', mode: 'carousel', isPaused: false, defaultDurationSeconds: 8, preferredFormat: '300x600' },
+  sidebar_300x600_2: { placement: 'sidebar_300x600_2', mode: 'carousel', isPaused: false, defaultDurationSeconds: 8, preferredFormat: '300x600' },
   sidebar_300x300_2: { placement: 'sidebar_300x300_2', mode: 'carousel', isPaused: false, defaultDurationSeconds: 5, preferredFormat: '300x300' },
   sidebar_300x300_3: { placement: 'sidebar_300x300_3', mode: 'carousel', isPaused: false, defaultDurationSeconds: 5, preferredFormat: '300x300' },
   article: { placement: 'article', mode: 'carousel', isPaused: false, defaultDurationSeconds: 5, preferredFormat: '300x300' },
@@ -1143,7 +1144,7 @@ const detectAdFormat = (ad: Partial<AdItem>): '300x300' | '300x600' | '728x90' |
   if (ad.adFormat === '970x90' || ad.adFormat === '728x90' || ad.adFormat === '300x300') {
     return ad.adFormat;
   }
-  if (ad.adFormat === '300x600' || ad.adFormat === '300x900' || ad.placement === 'sidebar_300x900' || ad.placement === 'sidebar_300x600') {
+  if (ad.adFormat === '300x600' || ad.adFormat === '300x900' || ad.placement === 'sidebar_300x900' || ad.placement === 'sidebar_300x600' || isExtraSidebarVertical(ad.placement)) {
     return '300x600';
   }
   const is970 = ad.adFormat === '970x90' || ad.aspectRatio === '970 / 90' || ad.aspectRatio === '970/90' || ad.width === 970;
@@ -1276,6 +1277,7 @@ export const adsService = {
       sidebar: { ...DEFAULT_PLACEMENT_SETTINGS.sidebar, ...(stored.sidebar || {}) },
       sidebar_300x900: { ...DEFAULT_PLACEMENT_SETTINGS.sidebar_300x900, ...(stored.sidebar_300x900 || {}) },
       sidebar_300x600: { ...DEFAULT_PLACEMENT_SETTINGS.sidebar_300x600, ...(stored.sidebar_300x600 || {}) },
+      sidebar_300x600_2: { ...DEFAULT_PLACEMENT_SETTINGS.sidebar_300x600_2, ...(stored.sidebar_300x600_2 || {}) },
       sidebar_300x300_2: { ...DEFAULT_PLACEMENT_SETTINGS.sidebar_300x300_2, ...(stored.sidebar_300x300_2 || {}) },
       sidebar_300x300_3: { ...DEFAULT_PLACEMENT_SETTINGS.sidebar_300x300_3, ...(stored.sidebar_300x300_3 || {}) },
       article: { ...DEFAULT_PLACEMENT_SETTINGS.article, ...(stored.article || {}) },
@@ -1324,7 +1326,8 @@ export const adsService = {
     return all
       .filter(a => {
         if (format === '300x900' || format === '300x600') {
-          return a.adFormat === '300x900' || a.adFormat === '300x600' || a.placement === 'sidebar_300x900' || a.placement === 'sidebar_300x600' || a.aspectRatio === '1 / 3' || a.aspectRatio === '1 / 2';
+          return (a.adFormat === '300x900' || a.adFormat === '300x600' || a.placement === 'sidebar_300x900' || a.placement === 'sidebar_300x600' || a.aspectRatio === '1 / 3' || a.aspectRatio === '1 / 2')
+            && !isExtraSidebarVertical(a.placement);
         }
         if (format === '300x300') {
           return (a.adFormat === '300x300' || (a.aspectRatio === '1 / 1' && a.placement !== 'sidebar_300x900' && a.placement !== 'sidebar_300x600')) && !isExtraSidebarSquare(a.placement);
@@ -1346,7 +1349,8 @@ export const adsService = {
     return all
       .filter(a => {
         if (placement === 'sidebar_300x900' || placement === 'sidebar_300x600') {
-          return a.placement === 'sidebar_300x900' || a.placement === 'sidebar_300x600' || a.adFormat === '300x900' || a.adFormat === '300x600';
+          return (a.placement === 'sidebar_300x900' || a.placement === 'sidebar_300x600' || a.adFormat === '300x900' || a.adFormat === '300x600')
+            && !isExtraSidebarVertical(a.placement);
         }
         return a.placement === placement;
       })

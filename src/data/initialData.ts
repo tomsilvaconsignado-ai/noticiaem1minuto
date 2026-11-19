@@ -82,3 +82,46 @@ export const INITIAL_ADS: AdItem[] = [
     createdAt: new Date().toISOString()
   }
 ];
+
+// "Anuncie aqui" exibido nos painéis laterais extras enquanto não há anunciante cadastrado neles
+const arteAnuncieAqui = (altura: 300 | 600): string => {
+  const meio = altura / 2;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="${altura}" viewBox="0 0 300 ${altura}">`
+    + `<rect width="300" height="${altura}" fill="#002f6c"/>`
+    + `<rect x="12" y="12" width="276" height="${altura - 24}" rx="14" fill="none" stroke="#18b8f5" stroke-opacity="0.6" stroke-width="2" stroke-dasharray="8 6"/>`
+    + `<text x="150" y="${meio - 62}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" fill="#9fdcfb">Espaço disponível</text>`
+    + `<text x="150" y="${meio - 10}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="40" font-weight="900" fill="#ffffff">Anuncie</text>`
+    + `<text x="150" y="${meio + 34}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="40" font-weight="900" fill="#ffffff">aqui</text>`
+    + `<text x="150" y="${meio + 78}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700" fill="#18b8f5">(79) 99963-8993</text>`
+    + `<text x="150" y="${meio + 102}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#cfe3ff">Notícia em 1 Minuto</text>`
+    + `</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
+
+export const anuncieAqui = (placement: AdItem['placement'], formato: '300x300' | '300x600'): AdItem => {
+  const vertical = formato === '300x600';
+  return {
+    id: `anuncie-aqui-${placement}`,
+    title: 'Anuncie no Notícia em 1 Minuto',
+    sponsorName: 'Notícia em 1 Minuto',
+    linkUrl: 'https://wa.me/5579999638993?text=Ol%C3%A1%2C%20quero%20anunciar%20no%20Not%C3%ADcia%20em%201%20Minuto',
+    mediaUrl: arteAnuncieAqui(vertical ? 600 : 300),
+    mediaType: 'image',
+    placement,
+    adFormat: formato,
+    aspectRatio: vertical ? '1 / 2' : '1 / 1',
+    width: 300,
+    height: vertical ? 600 : 300,
+    maxWidth: 300,
+    active: true,
+    status: 'active',
+    displayOrder: 1,
+    durationSeconds: 8,
+    openInNewTab: true,
+    altText: 'Anuncie no Notícia em 1 Minuto pelo WhatsApp (79) 99963-8993',
+    campaignName: 'Espaço disponível',
+    impressionsCount: 0,
+    clicksCount: 0,
+    createdAt: new Date(0).toISOString()
+  };
+};

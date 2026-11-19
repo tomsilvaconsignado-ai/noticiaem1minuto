@@ -21,13 +21,13 @@ import { ClassifiedDetail } from './components/classifieds/ClassifiedDetail';
 import { ClassifiedFormModal } from './components/classifieds/ClassifiedFormModal';
 import { MyClassifiedsModal } from './components/classifieds/MyClassifiedsModal';
 import { PrintEditionsPage } from './components/print/PrintEditionsPage';
-import { Article, AdItem, CategorySlug, UserProfile, ClassifiedItem, isExtraSidebarSquare } from './types/database';
+import { Article, AdItem, CategorySlug, UserProfile, ClassifiedItem, isExtraSidebarSquare, isExtraSidebarVertical } from './types/database';
 import { 
   newsService, adsService, authService, newsletterService,
   siteSettingsService, supabase, isSupabaseConfigured, classifiedsService, getStored, STORAGE_KEYS
 } from './lib/supabase';
 import { HomeSkeleton } from './components/news/HomeSkeleton';
-import { INITIAL_ARTICLES, INITIAL_ADS, INITIAL_CATEGORIES } from './data/initialData';
+import { INITIAL_ARTICLES, INITIAL_ADS, INITIAL_CATEGORIES, anuncieAqui } from './data/initialData';
 import { corEditoria, slugEditoria } from './lib/editorias';
 import { Sparkles, CheckCircle2 } from 'lucide-react';
 import { updateClientHeadForArticle, updateClientHeadForClassified, getAppBasePath, getArticlePathKey } from './lib/seo';
@@ -531,7 +531,12 @@ export default function App() {
   const ads300x300 = ads.filter(a => (a.adFormat === '300x300' || a.aspectRatio === '1 / 1') && a.placement !== 'sidebar_300x900' && a.placement !== 'sidebar_300x600' && !isExtraSidebarSquare(a.placement));
   const ads300x300Second = ads.filter(a => a.placement === 'sidebar_300x300_2');
   const ads300x300Third = ads.filter(a => a.placement === 'sidebar_300x300_3');
-  const ads300x900 = ads.filter(a => a.adFormat === '300x900' || a.placement === 'sidebar_300x900' || a.aspectRatio === '1 / 3' || a.adFormat === '300x600' || a.placement === 'sidebar_300x600' || a.aspectRatio === '1 / 2');
+  const ads300x900 = ads.filter(a => (a.adFormat === '300x900' || a.placement === 'sidebar_300x900' || a.aspectRatio === '1 / 3' || a.adFormat === '300x600' || a.placement === 'sidebar_300x600' || a.aspectRatio === '1 / 2') && !isExtraSidebarVertical(a.placement));
+  const ads300x600Second = ads.filter(a => a.placement === 'sidebar_300x600_2');
+  // Segundo quadrado e segundo vertical mostram "Anuncie aqui" enquanto não têm anunciante
+  const ativo = (a: AdItem) => a.status !== 'paused' && a.status !== 'ended' && a.active !== false;
+  const quadrado2 = ads300x300Second.some(ativo) ? ads300x300Second : [anuncieAqui('sidebar_300x300_2', '300x300')];
+  const vertical2 = ads300x600Second.some(ativo) ? ads300x600Second : [anuncieAqui('sidebar_300x600_2', '300x600')];
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans selection:bg-marca selection:text-white flex flex-col">
@@ -761,7 +766,7 @@ export default function App() {
 
                 {/* Espaços Publicitários 300x300 adicionais (carrosséis independentes) */}
                 <div className="flex justify-center w-full">
-                  <AdSlot format="300x300" placement="sidebar_300x300_2" ads={ads300x300Second} />
+                  <AdSlot format="300x300" placement="sidebar_300x300_2" ads={quadrado2} />
                 </div>
                 <div className="flex justify-center w-full">
                   <AdSlot format="300x300" placement="sidebar_300x300_3" ads={ads300x300Third} />
@@ -784,6 +789,11 @@ export default function App() {
                 {/* Espaço Publicitário Formato 300x600 (Vertical - Carrossel Independente) */}
                 <div className="flex justify-center w-full">
                   <AdSlot format="300x600" placement="sidebar_300x900" ads={ads300x900} />
+                </div>
+
+                {/* Segundo espaço 300x600, logo abaixo do primeiro, com anúncios e temporizador próprios */}
+                <div className="flex justify-center w-full">
+                  <AdSlot format="300x600" placement="sidebar_300x600_2" ads={vertical2} />
                 </div>
 
                 {/* Widget Newsletter 1 Minuto News */}
