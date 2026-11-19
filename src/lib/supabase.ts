@@ -1479,7 +1479,15 @@ export const adsService = {
 // SERVIÇO DE GERENCIAMENTO E MODERAÇÃO DE USUÁRIOS
 // As permissões são garantidas no banco (RLS + funções is_admin), não no navegador.
 // ==========================================
-const PROTECTED_ADMIN_EMAIL = 'noticiasem1minutoitabaiana@gmail.com';
+// Administradores master: não podem ser rebaixados, suspensos nem bloqueados pelo painel.
+// A mesma lista existe no banco (tabela administradores_master), que é quem garante a regra.
+export const ADMINISTRADORES_MASTER = [
+  'noticiasem1minutoitabaiana@gmail.com',
+  'tomsilvaconsignado@gmail.com',
+  'leowander@hotmail.com.br',
+];
+export const isAdminMaster = (email?: string | null): boolean =>
+  !!email && ADMINISTRADORES_MASTER.includes(email.trim().toLowerCase());
 
 const mapAuditRow = (row: any): UserAuditLog => ({
   id: row.id,
@@ -1622,8 +1630,8 @@ export const usersService = {
     if (target.id === adminUser.id) {
       throw new Error('Você não pode alterar o status ou aplicar restrições à sua própria conta de administrador.');
     }
-    if (target.email.toLowerCase() === PROTECTED_ADMIN_EMAIL) {
-      throw new Error('A conta do administrador principal é protegida pelo sistema e não pode ser suspensa ou bloqueada.');
+    if (isAdminMaster(target.email)) {
+      throw new Error('Esta conta é de um administrador master e não pode ser suspensa ou bloqueada.');
     }
 
     const sb = requireSupabase();
@@ -1672,8 +1680,8 @@ export const usersService = {
     }
 
     const target = await fetchProfileById(targetUserId);
-    if (target.email.toLowerCase() === PROTECTED_ADMIN_EMAIL && newRole !== 'admin') {
-      throw new Error('Os privilégios da conta do Administrador Geral não podem ser revogados.');
+    if (isAdminMaster(target.email) && newRole !== 'admin') {
+      throw new Error('Os privilégios de um administrador master não podem ser revogados.');
     }
 
     const sb = requireSupabase();

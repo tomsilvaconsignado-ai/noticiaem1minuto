@@ -8,7 +8,7 @@ import {
   Clock, Database, HelpCircle
 } from 'lucide-react';
 import { UserProfile, UserRole, UserStatus, UserAuditLog, ClassifiedReport } from '../../types/database';
-import { usersService, authService, getApiAuthHeaders, apiFetch } from '../../lib/supabase';
+import { usersService, authService, getApiAuthHeaders, apiFetch, isAdminMaster } from '../../lib/supabase';
 import { emailService } from '../../lib/emailService';
 
 interface AdminManageUsersProps {
@@ -832,7 +832,7 @@ export const AdminManageUsers: React.FC<AdminManageUsersProps> = ({ currentUser 
               <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
                 {paginatedUsers.map((u) => {
                   const isPF = (u.accountType || 'pf') === 'pf';
-                  const isProtectedAdmin = u.email.toLowerCase() === 'noticiasem1minutoitabaiana@gmail.com';
+                  const isProtectedAdmin = isAdminMaster(u.email);
                   const counts = classifiedCounts[u.id] || { total: 0, published: 0, pending: 0, rejected: 0 };
                   const effectiveState = getUserEffectiveState(u);
 
@@ -1205,7 +1205,7 @@ export const AdminManageUsers: React.FC<AdminManageUsersProps> = ({ currentUser 
                     </span>
 
                     {/* Botões de Ação Imediata */}
-                    {selectedUser.email.toLowerCase() !== 'noticiasem1minutoitabaiana@gmail.com' && (
+                    {!isAdminMaster(selectedUser.email) && (
                       <div className="flex gap-1">
                         {selectedUser.status === 'active' || !selectedUser.status ? (
                           <>
@@ -1341,7 +1341,7 @@ export const AdminManageUsers: React.FC<AdminManageUsersProps> = ({ currentUser 
                 <div className="pt-2 border-t border-gray-200">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-gray-500 text-[10px] font-bold uppercase">Papel de Acesso:</span>
-                    {currentUser.role === 'admin' && selectedUser.email.toLowerCase() !== 'noticiasem1minutoitabaiana@gmail.com' && (
+                    {currentUser.role === 'admin' && !isAdminMaster(selectedUser.email) && (
                       <button
                         onClick={() => setRoleModal({
                           isOpen: true,

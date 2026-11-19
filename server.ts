@@ -970,7 +970,7 @@ async function startServer() {
       }
 
       const target = serverUsers[userIndex];
-      if (target.email.toLowerCase() === 'noticiasem1minutoitabaiana@gmail.com') {
+      if (['noticiasem1minutoitabaiana@gmail.com', 'tomsilvaconsignado@gmail.com', 'leowander@hotmail.com.br'].includes(target.email.toLowerCase())) {
         return res.status(400).json({ 
           success: false, 
           error: 'A conta do Administrador Geral é protegida e não pode ser suspensa ou bloqueada.' 
@@ -1100,7 +1100,7 @@ async function startServer() {
       }
 
       const target = serverUsers[userIndex];
-      if (target.email.toLowerCase() === 'noticiasem1minutoitabaiana@gmail.com' && newRole !== 'admin') {
+      if (['noticiasem1minutoitabaiana@gmail.com', 'tomsilvaconsignado@gmail.com', 'leowander@hotmail.com.br'].includes(target.email.toLowerCase()) && newRole !== 'admin') {
         return res.status(400).json({ success: false, error: 'Os privilégios da conta do Administrador Geral não podem ser revogados.' });
       }
 
