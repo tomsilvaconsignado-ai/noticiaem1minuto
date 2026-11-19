@@ -71,7 +71,27 @@ export default function App() {
   
   // Newsletter Sidebar
   const [sidebarEmail, setSidebarEmail] = useState('');
-  const [sidebarSubscribed, setSidebarSubscribed] = useState(false);
+  const [sidebarSubscribed, setSidebarSubscribed] = useState<{ success: boolean; message: string } | null>(null);
+  const [sidebarEnviando, setSidebarEnviando] = useState(false);
+
+  // Volta dos links da newsletter (?newsletter=confirmada|cancelada|invalido): mostra o aviso e limpa o endereço
+  const [avisoNewsletter, setAvisoNewsletter] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(() => {
+    try {
+      const v = new URLSearchParams(window.location.search).get('newsletter');
+      if (v === 'confirmada') return { tipo: 'ok', texto: 'Inscrição confirmada! Você vai receber o resumo das notícias todo dia às 7h.' };
+      if (v === 'cancelada') return { tipo: 'ok', texto: 'Inscrição cancelada. Você não vai mais receber a newsletter.' };
+      if (v === 'invalido') return { tipo: 'erro', texto: 'Este link da newsletter não é válido ou já foi usado. Inscreva-se de novo no fim da página.' };
+    } catch { /* sem URL disponível */ }
+    return null;
+  });
+  useEffect(() => {
+    if (!avisoNewsletter) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('newsletter');
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    } catch { /* ignora */ }
+  }, []);
 
   // Slug de anúncio dos classificados no endereço (/classificado/slug, página estática ou ?p= do 404.html)
   const extractClassifiedSlug = (): string | null => {
@@ -466,10 +486,11 @@ export default function App() {
   const handleSidebarNewsletter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sidebarEmail.trim() || !sidebarEmail.includes('@')) return;
-    await newsletterService.subscribe(sidebarEmail);
-    setSidebarSubscribed(true);
-    setSidebarEmail('');
-    setTimeout(() => setSidebarSubscribed(false), 5000);
+    setSidebarEnviando(true);
+    const r = await newsletterService.subscribe(sidebarEmail);
+    setSidebarEnviando(false);
+    setSidebarSubscribed(r);
+    if (r.success) setSidebarEmail('');
   };
 
   // Filtragem de notícias
@@ -563,6 +584,20 @@ export default function App() {
 
       {/* Conteúdo Principal */}
       <main className="flex-1">
+        {avisoNewsletter && (
+          <div className="container mx-auto px-4 pt-4">
+            <div
+              role="status"
+              className={`flex items-start justify-between gap-4 rounded-lg px-4 py-3 text-[15px] ${avisoNewsletter.tipo === 'ok' ? 'bg-emerald-50 border border-emerald-200 text-emerald-900' : 'bg-amber-50 border border-amber-200 text-amber-900'}`}
+            >
+              <span className="flex items-start gap-2">
+                <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
+                {avisoNewsletter.texto}
+              </span>
+              <button onClick={() => setAvisoNewsletter(null)} className="text-sm font-semibold underline cursor-pointer shrink-0">Fechar</button>
+            </div>
+          </div>
+        )}
         {/* VISUALIZAÇÃO: PAINEL ADMINISTRATIVO */}
         {viewMode === 'admin' && currentUser && (
           <AdminDashboard
@@ -803,16 +838,19 @@ export default function App() {
                       As notícias do dia no seu e-mail
                     </h2>
                     <p className="text-blue-100 text-sm mb-5 leading-relaxed">
-                      Um resumo rápido de Itabaiana, Sergipe e do Brasil, uma vez por dia.
+                      Um resumo rápido de Itabaiana, Sergipe e do Brasil, todo dia às 7h.
                     </p>
 
-                    {sidebarSubscribed ? (
-                      <div className="p-3 bg-emerald-950 border border-emerald-800 rounded-lg flex items-center gap-2 text-xs text-emerald-300">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>Inscrição confirmada com sucesso!</span>
+                    {sidebarSubscribed?.success ? (
+                      <div className="p-3 bg-white/10 border border-white/25 rounded-lg flex items-start gap-2 text-sm text-white" role="status">
+                        <CheckCircle2 className="w-4 h-4 text-marca-ciano shrink-0 mt-0.5" />
+                        <span>{sidebarSubscribed.message}</span>
                       </div>
                     ) : (
                       <form onSubmit={handleSidebarNewsletter} className="space-y-2">
+                        {sidebarSubscribed && (
+                          <p className="text-sm text-amber-200" role="alert">{sidebarSubscribed.message}</p>
+                        )}
                         <input
                           type="email"
                           required
@@ -824,9 +862,10 @@ export default function App() {
                         />
                         <button
                           type="submit"
-                          className="w-full bg-marca-ciano hover:bg-white text-marca-escuro font-semibold py-3 rounded-lg transition-colors cursor-pointer"
+                          disabled={sidebarEnviando}
+                          className="w-full bg-marca-ciano hover:bg-white text-marca-escuro font-semibold py-3 rounded-lg transition-colors cursor-pointer disabled:opacity-60"
                         >
-                          Receber o resumo
+                          {sidebarEnviando ? 'Enviando...' : 'Receber o resumo'}
                         </button>
                       </form>
                     )}

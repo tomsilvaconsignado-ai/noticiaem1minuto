@@ -21,7 +21,7 @@ export const Footer: React.FC<FooterProps> = ({
   footerAds
 }) => {
   const [email, setEmail] = useState('');
-  const [subscribed, setSubscribed] = useState(false);
+  const [resultado, setResultado] = useState<{ success: boolean; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState<PortalSettings>(() => portalSettingsService.getSettingsSync());
 
@@ -37,11 +37,10 @@ export const Footer: React.FC<FooterProps> = ({
     e.preventDefault();
     if (!email.trim() || !email.includes('@')) return;
     setLoading(true);
-    await newsletterService.subscribe(email);
+    const r = await newsletterService.subscribe(email);
     setLoading(false);
-    setSubscribed(true);
-    setEmail('');
-    setTimeout(() => setSubscribed(false), 5000);
+    setResultado(r);
+    if (r.success) setEmail('');
   };
 
   // Formatação segura de telefone para link tel:
@@ -243,14 +242,18 @@ export const Footer: React.FC<FooterProps> = ({
               Newsletter
             </h4>
             <p className="text-gray-500 text-sm font-medium">
-              Receba as principais notícias do dia no seu e-mail.
+              Todo dia às 7h, as principais notícias de Itabaiana e região no seu e-mail.
             </p>
-            {subscribed ? (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-xs text-green-700">
-                <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                <span>Obrigado por se inscrever!</span>
+            {resultado?.success ? (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2 text-sm text-green-800" role="status">
+                <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+                <span>{resultado.message}</span>
               </div>
             ) : (
+              <>
+              {resultado && (
+                <p className="text-sm text-red-700" role="alert">{resultado.message}</p>
+              )}
               <form onSubmit={handleSubscribe} className="flex gap-2">
                 <input
                   type="email"
@@ -269,6 +272,7 @@ export const Footer: React.FC<FooterProps> = ({
                   <Send className="w-4 h-4" />
                 </button>
               </form>
+              </>
             )}
           </div>
         </div>

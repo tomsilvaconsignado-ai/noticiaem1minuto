@@ -1810,16 +1810,23 @@ export const commentsService = {
 };
 
 export const newsletterService = {
+  // A inscrição passa pela Edge Function "newsletter", que grava o e-mail como pendente e
+  // envia o link de confirmação (supabase/functions/newsletter)
   async subscribe(email: string): Promise<{ success: boolean; message: string }> {
-    const sb = requireSupabase();
-    const { error } = await sb.from('newsletter_subscribers').insert([{ email: email.trim().toLowerCase() }]);
-    if (error?.code === '23505') {
-      return { success: true, message: 'Você já está cadastrado em nossa lista VIP!' };
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/newsletter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao: 'inscrever', email: email.trim().toLowerCase() }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      return {
+        success: !!data.ok,
+        message: data.mensagem || (resp.ok ? 'Inscrição recebida.' : 'Não foi possível concluir a inscrição agora. Tente novamente em instantes.'),
+      };
+    } catch {
+      return { success: false, message: 'Sem conexão no momento. Verifique sua internet e tente de novo.' };
     }
-    if (error) {
-      return { success: false, message: describeDbError(error, 'concluir a inscrição').message };
-    }
-    return { success: true, message: 'Inscrição confirmada com sucesso! Fique atento ao seu e-mail.' };
   },
 
   async getSubscribers(): Promise<NewsletterSubscriber[]> {
