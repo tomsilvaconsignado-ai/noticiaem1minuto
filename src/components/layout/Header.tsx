@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Menu, X, User, Shield, LogOut, ChevronDown, Bell, Tag, Newspaper } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Search, Menu, X, User, Shield, LogOut, ChevronDown, Tag, Newspaper } from 'lucide-react';
 import { TopBar } from './TopBar';
 import { AdSlot } from '../news/AdSlot';
 import { NotificationBell } from '../notifications/NotificationBell';
@@ -7,6 +7,7 @@ import { AdItem, CategorySlug, UserProfile, PortalSettings } from '../../types/d
 import { INITIAL_CATEGORIES } from '../../data/initialData';
 import { portalSettingsService } from '../../lib/supabase';
 import { getAssetUrl } from '../../lib/assets';
+import { corEditoria } from '../../lib/editorias';
 import { InstallAppButton } from '../common/InstallAppButton';
 
 interface HeaderProps {
@@ -26,6 +27,9 @@ interface HeaderProps {
   onOpenMyClassifieds?: () => void;
 }
 
+// "Início" não aparece na faixa de editorias: o logo já leva para a página inicial
+const EDITORIAS = INITIAL_CATEGORIES.filter(c => c.slug !== 'todos');
+
 export const Header: React.FC<HeaderProps> = ({
   currentCategory,
   onSelectCategory,
@@ -41,408 +45,261 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectArticleSlug,
   onOpenMyClassifieds
 }) => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [portalSettings, setPortalSettings] = useState<PortalSettings>(() => portalSettingsService.getSettingsSync());
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
-    const handleUpdate = () => {
-      setPortalSettings(portalSettingsService.getSettingsSync());
-    };
+  useEffect(() => {
+    const handleUpdate = () => setPortalSettings(portalSettingsService.getSettingsSync());
     window.addEventListener('n1m_portal_settings_updated', handleUpdate);
     return () => window.removeEventListener('n1m_portal_settings_updated', handleUpdate);
   }, []);
 
-  // Formatar data em português
-  const formattedDate = new Intl.DateTimeFormat('pt-BR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }).format(new Date());
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+  // Esc fecha menu e busca
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setMenuOpen(false); setSearchOpen(false); setUserDropdownOpen(false); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       onSearch(searchQuery.trim());
+      setSearchOpen(false);
+      setMenuOpen(false);
     }
   };
 
-  return (
-    <header className="w-full bg-white border-b border-gray-100 sticky top-0 z-50">
-      {/* Ticker / Cotações */}
-      <TopBar />
+  const selecionar = (slug: CategorySlug) => {
+    onSelectCategory(slug);
+    setMenuOpen(false);
+  };
 
-      <div className="container mx-auto px-4">
-        {/* Top Header Bar (Data, Redes e Acesso) */}
-        <div className="hidden md:flex justify-between items-center py-2 text-[10px] text-gray-500 border-b border-gray-50">
-          <div className="flex items-center gap-5">
-            <span className="capitalize font-bold text-gray-900 tracking-tight">
-              {formattedDate}
-            </span>
-            <div className="flex items-center gap-3 border-l border-gray-100 pl-5">
-              <button
-                onClick={onOpenAdmin}
-                className="hover:text-marca transition-colors font-bold uppercase tracking-widest flex items-center gap-1 cursor-pointer"
-                title="Acesso exclusivo para administradores e editores"
-              >
-                <Shield className="w-3 h-3 text-marca" />
-                Acesso Restrito
-              </button>
-            </div>
+  const nomePortal = portalSettings.officialName || 'Notícia em 1 Minuto';
+
+  return (
+    <header className="w-full bg-white">
+      {/* Linha principal: menu, logo centralizado, conta e busca */}
+      <div className="border-b border-gray-200">
+        <div className="container mx-auto px-4 h-16 md:h-[92px] grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div className="flex items-center">
+            <button
+              onClick={() => { setMenuOpen(o => !o); setSearchOpen(false); }}
+              className="inline-flex items-center gap-2.5 -ml-2 px-2 py-2 rounded-lg text-gray-800 hover:bg-gray-100 cursor-pointer"
+              aria-expanded={menuOpen}
+              aria-controls="menu-portal"
+            >
+              {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              <span className="hidden md:inline text-[15px] font-medium">Menu</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-4">
-            <InstallAppButton variant="compact" />
-            {/* Redes Sociais */}
-            <div className="flex items-center gap-3">
-              {portalSettings.showFacebook && portalSettings.facebookUrl && (
-                <a
-                  href={portalSettings.facebookUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-5 h-5 rounded-full bg-gray-900 flex items-center justify-center text-white cursor-pointer hover:bg-marca transition-all shadow-sm"
-                  title="Facebook"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
-                    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
-                  </svg>
-                </a>
-              )}
-              {portalSettings.showInstagram && portalSettings.instagramUrl && (
-                <a
-                  href={portalSettings.instagramUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-5 h-5 rounded-full bg-gray-900 flex items-center justify-center text-white cursor-pointer hover:bg-marca transition-all shadow-sm"
-                  title="Instagram"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
-                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-                  </svg>
-                </a>
-              )}
-            </div>
+          <button
+            onClick={onGoHome}
+            className="justify-self-center cursor-pointer"
+            title={`${nomePortal}: página inicial`}
+            aria-label={`${nomePortal}: ir para a página inicial`}
+          >
+            <img
+              src={getAssetUrl(portalSettings.customLogoUrl || 'logo.png')}
+              alt={nomePortal}
+              className="h-12 md:h-[76px] w-auto max-w-[150px] md:max-w-[260px] object-contain select-none"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                const fallbackUrl = getAssetUrl('logo.png');
+                if (target.src !== fallbackUrl) target.src = fallbackUrl;
+              }}
+            />
+          </button>
 
-            {/* Usuário ou Login */}
+          <div className="flex items-center justify-end gap-1 md:gap-3">
+            <div className="hidden lg:block"><InstallAppButton variant="compact" /></div>
+
             {currentUser ? (
-              <div className="flex items-center gap-3">
-                {/* Sino de Notificações para Usuário Logado */}
-                <NotificationBell
-                  currentUser={currentUser}
-                  onSelectArticleSlug={onSelectArticleSlug}
-                />
-
+              <>
+                <NotificationBell currentUser={currentUser} onSelectArticleSlug={onSelectArticleSlug} />
                 <div className="relative">
                   <button
-                    onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors text-gray-800 font-bold cursor-pointer"
+                    onClick={() => setUserDropdownOpen(o => !o)}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-gray-100 text-gray-800 cursor-pointer"
+                    aria-expanded={userDropdownOpen}
                   >
                     <img
                       src={currentUser.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${currentUser.fullName}`}
-                      alt={currentUser.fullName}
-                      className="w-4 h-4 rounded-full object-cover"
+                      alt=""
+                      className="w-7 h-7 rounded-full object-cover"
                     />
-                    <span className="text-[10px] max-w-[120px] truncate">{currentUser.fullName}</span>
-                    <ChevronDown className="w-2.5 h-2.5" />
+                    <span className="hidden md:inline text-sm font-medium max-w-[120px] truncate">{currentUser.fullName.split(' ')[0]}</span>
+                    <ChevronDown className="hidden md:inline w-3.5 h-3.5" />
                   </button>
-
                   {userDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-xl py-2 z-50 text-left text-xs animate-in fade-in">
-                      <div className="px-3 py-1.5 border-b border-gray-50">
-                        <p className="font-bold text-gray-900 truncate">{currentUser.fullName}</p>
-                        <p className="text-[10px] text-gray-500 capitalize">{currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'editor' ? 'Jornalista' : 'Leitor VIP'}</p>
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg py-2 z-50 text-sm">
+                      <div className="px-4 py-2 border-b border-gray-100">
+                        <p className="font-semibold text-gray-900 truncate">{currentUser.fullName}</p>
+                        <p className="text-xs text-gray-500">{currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'editor' ? 'Jornalista' : 'Leitor'}</p>
                       </div>
-
                       {(currentUser.role === 'admin' || currentUser.role === 'editor') && (
-                        <button
-                          onClick={() => { setUserDropdownOpen(false); onOpenAdmin(); }}
-                          className="w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer"
-                        >
-                          <Shield className="w-3.5 h-3.5 text-marca" />
-                          Painel de Controle
+                        <button onClick={() => { setUserDropdownOpen(false); onOpenAdmin(); }} className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer">
+                          <Shield className="w-4 h-4 text-marca" /> Painel de controle
                         </button>
                       )}
-
                       {onOpenMyClassifieds && (
-                        <button
-                          onClick={() => { setUserDropdownOpen(false); onOpenMyClassifieds(); }}
-                          className="w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer"
-                        >
-                          <Tag className="w-3.5 h-3.5 text-amber-500" />
-                          Meus Classificados
+                        <button onClick={() => { setUserDropdownOpen(false); onOpenMyClassifieds(); }} className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer">
+                          <Tag className="w-4 h-4 text-amber-600" /> Meus classificados
                         </button>
                       )}
-
-                      <button
-                        onClick={() => { setUserDropdownOpen(false); onSignOut(); }}
-                        className="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        Sair da Conta
+                      <button onClick={() => { setUserDropdownOpen(false); onSignOut(); }} className="w-full text-left px-4 py-2 text-red-700 hover:bg-red-50 flex items-center gap-2 cursor-pointer">
+                        <LogOut className="w-4 h-4" /> Sair da conta
                       </button>
                     </div>
                   )}
                 </div>
-              </div>
+              </>
             ) : (
-              <div className="flex items-center gap-2 pl-3 border-l border-gray-100">
-                <button
-                  onClick={() => onOpenAuth('login')}
-                  className="text-[10px] font-black uppercase tracking-wider text-marca hover:underline cursor-pointer"
-                >
-                  Entrar
-                </button>
-                <span className="text-gray-300">|</span>
-                <button
-                  onClick={() => onOpenAuth('register')}
-                  className="text-[10px] font-black uppercase tracking-wider text-gray-700 hover:text-black cursor-pointer"
-                >
-                  Cadastrar
-                </button>
-              </div>
+              <button
+                onClick={() => onOpenAuth('login')}
+                className="inline-flex items-center gap-2 px-2 py-2 rounded-lg text-gray-800 hover:bg-gray-100 cursor-pointer"
+              >
+                <span className="hidden md:inline text-[15px] font-medium">Entrar</span>
+                <User className="w-6 h-6 text-marca" />
+              </button>
             )}
+
+            <span className="hidden md:block w-px h-8 bg-gray-200" aria-hidden="true" />
+            <button
+              onClick={() => { setSearchOpen(o => !o); setMenuOpen(false); }}
+              className="inline-flex items-center gap-2 px-2 py-2 rounded-lg text-gray-800 hover:bg-gray-100 cursor-pointer"
+              aria-expanded={searchOpen}
+              aria-controls="busca-portal"
+            >
+              <span className="hidden md:inline text-[15px] font-medium">Busca</span>
+              {searchOpen ? <X className="w-6 h-6 text-marca" /> : <Search className="w-6 h-6 text-marca" />}
+            </button>
           </div>
         </div>
 
-        {/* Linha Central: Logotipo + Banner 728x90 + Busca */}
-        <div className="flex justify-between items-center py-4 md:py-6 gap-6 relative">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 -ml-2 text-gray-900 touch-manipulation cursor-pointer"
-              aria-label="Abrir Menu"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-
-            {/* Logotipo Oficial do Notícia em 1 Minuto (Substituído de texto para imagem) */}
-            <button
-              onClick={onGoHome}
-              className="flex items-center group transition-opacity hover:opacity-95 cursor-pointer text-left shrink-0"
-              title={`${portalSettings.officialName || 'Notícia em 1 Minuto'} - Página Inicial`}
-              aria-label={`${portalSettings.officialName || 'Notícia em 1 Minuto'} - Ir para página inicial`}
-            >
-              <img
-                src={getAssetUrl(portalSettings.customLogoUrl || 'logo.png')}
-                alt={portalSettings.officialName || 'Notícia em 1 Minuto'}
-                className="h-14 sm:h-16 md:h-[72px] lg:h-[88px] w-auto max-w-[180px] sm:max-w-[220px] md:max-w-[260px] lg:max-w-[320px] object-contain select-none"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  const fallbackUrl = getAssetUrl('logo.png');
-                  if (target.src !== fallbackUrl) {
-                    target.src = fallbackUrl;
-                  }
-                }}
-              />
-            </button>
-          </div>
-
-          {/* Banner de Topo (728x90 ou 970x90) */}
-          <div className={`hidden lg:flex flex-1 justify-center items-center max-w-[970px] min-w-0 ${reserveAdSpace ? 'min-h-[112px]' : ''}`}>
-            <AdSlot placement="header" ads={headerAds} ad={headerAd} />
-          </div>
-
-          {/* Campo de Busca & Usuário Mobile */}
-          <div className="flex items-center gap-3">
-            <form
-              onSubmit={handleSearchSubmit}
-              className="hidden md:flex items-center bg-gray-50 border border-gray-100 rounded-lg px-4 py-2 w-44 lg:w-60 focus-within:ring-2 focus-within:ring-marca/10 focus-within:bg-white transition-all"
-            >
-              <Search className="w-4 h-4 text-gray-500 mr-2.5 shrink-0" />
+        {/* Busca expandida */}
+        {searchOpen && (
+          <form id="busca-portal" onSubmit={handleSearchSubmit} className="container mx-auto px-4 pb-4">
+            <label className="flex items-center gap-3 border-b-2 border-marca py-2">
+              <Search className="w-5 h-5 text-gray-400 shrink-0" />
+              <span className="sr-only">Buscar notícias</span>
               <input
-                type="text"
-                placeholder="Pesquisar..."
+                ref={searchInputRef}
+                type="search"
+                placeholder="Buscar notícias"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent border-none outline-none text-xs w-full font-medium placeholder:text-gray-400 text-gray-800"
+                className="w-full bg-transparent outline-none text-lg text-gray-900 placeholder:text-gray-400"
               />
-            </form>
+              <button type="submit" className="px-4 py-1.5 rounded-lg bg-marca hover:bg-marca-escuro text-white text-sm font-semibold cursor-pointer">Buscar</button>
+            </label>
+          </form>
+        )}
+      </div>
 
-            {currentUser && (
-              <div className="md:hidden">
-                <NotificationBell
-                  currentUser={currentUser}
-                  onSelectArticleSlug={onSelectArticleSlug}
-                />
-              </div>
-            )}
+      {/* Faixa de editorias: cada uma na sua cor */}
+      <nav aria-label="Editorias" className="border-b border-gray-200">
+        <ul className="container mx-auto px-4 flex items-center gap-6 md:gap-8 lg:justify-between overflow-x-auto no-scrollbar whitespace-nowrap">
+          {EDITORIAS.map((cat) => {
+            const ativa = currentCategory === cat.slug;
+            const cor = corEditoria(cat.slug);
+            return (
+              <li key={cat.id}>
+                <button
+                  onClick={() => selecionar(cat.slug)}
+                  aria-current={ativa ? 'page' : undefined}
+                  className="rotulo-editoria text-[15px] md:text-base inline-flex items-center gap-1.5 py-3 border-b-[3px] cursor-pointer transition-colors"
+                  style={{ color: cor, borderColor: ativa ? cor : 'transparent' }}
+                >
+                  {cat.slug === 'classificados' && <Tag className="w-4 h-4" />}
+                  {cat.slug === 'midia-impressa' && <Newspaper className="w-4 h-4" />}
+                  {cat.name}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
 
-            <button
-              onClick={() => onOpenAuth('login')}
-              className="md:hidden p-2 text-gray-700 hover:text-marca"
-              title="Minha Conta"
-            >
-              <User className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+      {/* Data, clima de Itabaiana e dólar */}
+      <div className="border-b border-gray-200">
+        <TopBar />
+      </div>
 
-        {/* Menu de Navegação Horizontal (Desktop) */}
-        <nav className="hidden md:block border-t border-gray-100">
-          <ul className="flex justify-start items-center py-3 gap-8 lg:gap-10 whitespace-nowrap overflow-x-auto no-scrollbar">
-            {INITIAL_CATEGORIES.map((cat) => {
-              const isActive = currentCategory === cat.slug;
-              const isClassifieds = cat.slug === 'classificados';
-              const isPrint = cat.slug === 'midia-impressa';
-              return (
-                <li key={cat.id}>
-                  <button
-                    onClick={() => onSelectCategory(cat.slug)}
-                    className={`text-xs font-black uppercase tracking-widest transition-all pb-1 border-b-2 cursor-pointer flex items-center gap-1.5 ${
-                      isActive
-                        ? isClassifieds
-                          ? 'text-amber-600 border-amber-500 font-black'
-                          : isPrint
-                            ? 'text-red-700 border-red-600 font-black'
-                            : 'text-marca border-marca'
-                        : isClassifieds
-                          ? 'text-amber-600 hover:text-amber-700 border-transparent hover:border-amber-500'
-                          : isPrint
-                            ? 'text-red-700 hover:text-red-800 border-transparent hover:border-red-600'
-                            : 'text-gray-800 hover:text-marca border-transparent hover:border-marca'
-                    }`}
-                  >
-                    {isClassifieds && <Tag className="w-3 h-3 text-amber-500" />}
-                    {isPrint && <Newspaper className="w-3 h-3 text-red-600" />}
-                    <span>{cat.name}</span>
-                    {isClassifieds && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white tracking-normal leading-none shadow-xs">
-                        NOVO
-                      </span>
-                    )}
-                    {isPrint && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white tracking-normal leading-none shadow-xs">
-                        PDF
-                      </span>
-                    )}
-                  </button>
+      {/* Menu completo */}
+      {menuOpen && (
+        <div id="menu-portal" className="border-b border-gray-200 bg-white shadow-sm">
+          <div className="container mx-auto px-4 py-6 grid gap-8 md:grid-cols-[2fr_1fr]">
+            <div>
+              <p className="text-sm text-gray-500 mb-3">Editorias</p>
+              <ul className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1">
+                <li>
+                  <button onClick={() => { onGoHome(); setMenuOpen(false); }} className="titulo text-lg py-1.5 text-gray-900 hover:underline cursor-pointer">Início</button>
                 </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        {/* Banner no Mobile */}
-        <div className="lg:hidden w-full py-2 border-t border-gray-50 overflow-hidden">
-          <AdSlot placement="header" ads={headerAds} ad={headerAd} />
-        </div>
-
-        {/* Menu Mobile Dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-gray-100 bg-white space-y-4 animate-in slide-in-from-top-2 duration-200">
-            <form onSubmit={handleSearchSubmit} className="flex items-center bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-              <Search className="w-4 h-4 text-gray-500 mr-2" />
-              <input
-                type="text"
-                placeholder="Buscar notícias..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent text-sm w-full outline-none"
-              />
-            </form>
-
-            {/* Instalar o portal como aplicativo (some quando já está instalado) */}
-            <InstallAppButton variant="menu" />
-
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              {INITIAL_CATEGORIES.map((cat) => {
-                const isClassifieds = cat.slug === 'classificados';
-                const isPrint = cat.slug === 'midia-impressa';
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      onSelectCategory(cat.slug);
-                      setMobileMenuOpen(false);
-                    }}
-                    className={`text-left px-3 py-2 text-xs font-black uppercase tracking-wider rounded-lg flex items-center justify-between ${
-                      currentCategory === cat.slug
-                        ? isClassifieds ? 'bg-amber-500 text-white' : isPrint ? 'bg-red-600 text-white' : 'bg-marca text-white'
-                        : isClassifieds
-                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                          : isPrint
-                            ? 'bg-red-50 text-red-800 border border-red-200'
-                            : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
-                    }`}
-                  >
-                    <span>{cat.name}</span>
-                    {isClassifieds && (
-                      <span className="text-[10px] bg-amber-600 text-white px-1.5 py-0.5 rounded font-black">
-                        NOVO
-                      </span>
-                    )}
-                    {isPrint && (
-                      <span className="text-[10px] bg-red-700 text-white px-1.5 py-0.5 rounded font-black">
-                        PDF
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                {EDITORIAS.map(cat => (
+                  <li key={cat.id}>
+                    <button
+                      onClick={() => selecionar(cat.slug)}
+                      className="titulo text-lg py-1.5 hover:underline cursor-pointer text-left"
+                      style={{ color: corEditoria(cat.slug) }}
+                    >
+                      {cat.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
-
-            {currentUser && onOpenMyClassifieds && (
-              <div className="pt-2 flex flex-col gap-2 border-t border-gray-100">
-                <button
-                  onClick={() => {
-                    onOpenMyClassifieds();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                >
-                  <Tag className="w-3.5 h-3.5 text-amber-600" />
-                  Meus Classificados
-                </button>
-                {(currentUser.role === 'admin' || currentUser.role === 'editor') && (
-                  <button
-                    onClick={() => {
-                      onOpenAdmin();
-                      setMobileMenuOpen(false);
-                    }}
-                    className="w-full py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                  >
-                    <Shield className="w-3.5 h-3.5 text-marca" />
-                    Painel Administrativo
-                  </button>
+            <div className="space-y-4 text-sm">
+              <InstallAppButton variant="menu" />
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {portalSettings.showInstagram && portalSettings.instagramUrl && (
+                  <a href={portalSettings.instagramUrl} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-marca underline-offset-2 hover:underline">Instagram</a>
+                )}
+                {portalSettings.showYoutube && portalSettings.youtubeUrl && (
+                  <a href={portalSettings.youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-marca underline-offset-2 hover:underline">YouTube</a>
+                )}
+                {portalSettings.showFacebook && portalSettings.facebookUrl && (
+                  <a href={portalSettings.facebookUrl} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-marca underline-offset-2 hover:underline">Facebook</a>
+                )}
+                {portalSettings.showWhatsapp && portalSettings.whatsappLink && (
+                  <a href={portalSettings.whatsappLink} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-marca underline-offset-2 hover:underline">WhatsApp da redação</a>
                 )}
               </div>
-            )}
-
-            <div className="pt-4 border-t border-gray-100 flex justify-between items-center text-xs font-bold">
-              {currentUser ? (
-                <div className="flex items-center justify-between w-full">
-                  <span className="text-gray-900">{currentUser.fullName}</span>
-                  <button
-                    onClick={() => { onSignOut(); setMobileMenuOpen(false); }}
-                    className="text-red-600 uppercase tracking-widest text-[10px]"
-                  >
-                    Sair
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-4 w-full">
-                  <button
-                    onClick={() => { onOpenAuth('login'); setMobileMenuOpen(false); }}
-                    className="flex-1 py-2 bg-marca text-white rounded text-center uppercase tracking-wider text-[10px]"
-                  >
-                    Entrar
-                  </button>
-                  <button
-                    onClick={() => { onOpenAuth('register'); setMobileMenuOpen(false); }}
-                    className="flex-1 py-2 bg-gray-100 text-gray-800 rounded text-center uppercase tracking-wider text-[10px]"
-                  >
-                    Cadastrar
-                  </button>
+              {!currentUser && (
+                <div className="flex gap-3">
+                  <button onClick={() => { onOpenAuth('login'); setMenuOpen(false); }} className="px-4 py-2 rounded-lg bg-marca hover:bg-marca-escuro text-white font-semibold cursor-pointer">Entrar</button>
+                  <button onClick={() => { onOpenAuth('register'); setMenuOpen(false); }} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-800 hover:bg-gray-50 font-semibold cursor-pointer">Criar conta</button>
                 </div>
               )}
+              <button
+                onClick={() => { onOpenAdmin(); setMenuOpen(false); }}
+                className="inline-flex items-center gap-1.5 text-gray-500 hover:text-marca cursor-pointer"
+                title="Acesso exclusivo para administradores e editores"
+              >
+                <Shield className="w-4 h-4" /> Acesso da redação
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Banner do topo, em largura total abaixo do cabeçalho */}
+      <div className={`container mx-auto px-4 flex justify-center ${reserveAdSpace ? 'min-h-[112px]' : ''}`}>
+        <div className="w-full flex justify-center py-4 empty:hidden">
+          <AdSlot placement="header" ads={headerAds} ad={headerAd} />
+        </div>
       </div>
     </header>
   );

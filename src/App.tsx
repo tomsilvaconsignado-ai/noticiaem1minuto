@@ -27,7 +27,8 @@ import {
   siteSettingsService, supabase, isSupabaseConfigured, classifiedsService, getStored, STORAGE_KEYS
 } from './lib/supabase';
 import { HomeSkeleton } from './components/news/HomeSkeleton';
-import { INITIAL_ARTICLES, INITIAL_ADS } from './data/initialData';
+import { INITIAL_ARTICLES, INITIAL_ADS, INITIAL_CATEGORIES } from './data/initialData';
+import { corEditoria, slugEditoria } from './lib/editorias';
 import { Sparkles, CheckCircle2 } from 'lucide-react';
 import { updateClientHeadForArticle, updateClientHeadForClassified, getAppBasePath, getArticlePathKey } from './lib/seo';
 
@@ -474,9 +475,10 @@ export default function App() {
   // Filtragem de notícias
   let filteredArticles = [...articles];
 
+  // Compara pelo slug: "Política" (nome gravado na matéria) corresponde a "politica" (menu)
   if (currentCategory !== 'todos') {
     filteredArticles = filteredArticles.filter(
-      a => a.category.toLowerCase() === currentCategory.toLowerCase() ||
+      a => slugEditoria(a.category) === currentCategory ||
       (currentCategory === 'videos' && a.isVideo)
     );
   }
@@ -491,10 +493,30 @@ export default function App() {
   }
 
   // Destaques
+  const filtrando = !!searchQuery.trim() || currentCategory !== 'todos';
   const heroArticle = filteredArticles.find(a => a.isHero) || filteredArticles[0];
-  const secondaryArticles = filteredArticles.filter(a => a.id !== heroArticle?.id).slice(0, 4);
-  const feedArticles = filteredArticles.filter(a => a.id !== heroArticle?.id && !secondaryArticles.some(s => s.id === a.id));
+  const heroRelacionadas = heroArticle
+    ? filteredArticles.filter(a => a.id !== heroArticle.id && a.category === heroArticle.category).slice(0, 2)
+    : [];
+  const jaExibidas = new Set<string>([heroArticle?.id, ...heroRelacionadas.map(a => a.id)].filter(Boolean) as string[]);
+  const secondaryArticles = filteredArticles.filter(a => !jaExibidas.has(a.id)).slice(0, 4);
+  secondaryArticles.forEach(a => jaExibidas.add(a.id));
+
+  // Página inicial: um bloco por editoria com as 3 notícias mais recentes ainda não exibidas
+  const blocosEditoria = filtrando ? [] : INITIAL_CATEGORIES
+    .filter(c => !['todos', 'videos', 'classificados', 'midia-impressa'].includes(c.slug))
+    .map(c => {
+      const itens = filteredArticles.filter(a => slugEditoria(a.category) === c.slug && !jaExibidas.has(a.id)).slice(0, 3);
+      itens.forEach(a => jaExibidas.add(a.id));
+      return { editoria: c, itens };
+    })
+    .filter(b => b.itens.length > 0);
+
+  const feedArticles = filtrando
+    ? filteredArticles.filter(a => searchQuery.trim() ? true : a.id !== heroArticle?.id)
+    : filteredArticles.filter(a => !jaExibidas.has(a.id));
   const visibleFeed = feedArticles.slice(0, visibleCount);
+  const nomeEditoriaAtual = INITIAL_CATEGORIES.find(c => c.slug === currentCategory)?.name || currentCategory;
 
   // Mais Lidas (Ordenadas por viewsCount)
   const mostReadArticles = [...articles].sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0)).slice(0, 5);
@@ -610,91 +632,124 @@ export default function App() {
         {/* VISUALIZAÇÃO: PÁGINA INICIAL / FEED */}
         {viewMode === 'home' && !contentReady && <HomeSkeleton />}
         {viewMode === 'home' && contentReady && (
-          <div className="container mx-auto px-4 py-6">
-            {/* Aviso de busca ou categoria filtrada */}
-            {(searchQuery || currentCategory !== 'todos') && (
-              <div className="mb-6 pb-4 border-b border-gray-200 flex justify-between items-center">
+          <div className="container mx-auto px-4 pt-2 pb-14">
+            {/* Título da editoria ou da busca */}
+            {filtrando && (
+              <div className="mb-6 pb-4 border-b border-gray-200 flex flex-wrap justify-between items-end gap-3">
                 <div>
-                  <h2 className="text-xl font-black uppercase tracking-tight text-gray-900">
-                    {searchQuery ? `Resultados para: "${searchQuery}"` : `Editoria: ${currentCategory}`}
-                  </h2>
-                  <p className="text-xs text-gray-500">
-                    {filteredArticles.length} notícia(s) encontrada(s)
+                  <h1
+                    className="titulo text-3xl md:text-4xl"
+                    style={{ color: searchQuery ? undefined : corEditoria(currentCategory) }}
+                  >
+                    {searchQuery ? `Resultados para “${searchQuery}”` : nomeEditoriaAtual}
+                  </h1>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {filteredArticles.length === 1 ? '1 notícia' : `${filteredArticles.length} notícias`}
                   </p>
                 </div>
                 <button
                   onClick={() => { setCurrentCategory('todos'); setSearchQuery(''); }}
-                  className="text-xs font-black uppercase text-marca hover:underline cursor-pointer"
+                  className="text-sm font-semibold text-marca hover:underline cursor-pointer"
                 >
-                  Limpar Filtros
+                  Voltar para a página inicial
                 </button>
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              {/* COLUNA PRINCIPAL (8 Colunas) */}
-              <div className="lg:col-span-8 space-y-12">
-                {/* 1. Destaque Hero Principal */}
-                {heroArticle && !searchQuery && (
-                  <section>
-                    <ArticleCard
-                      article={heroArticle}
-                      variant="hero"
-                      onSelectArticle={handleSelectArticle}
-                    />
-                  </section>
-                )}
+            {filteredArticles.length === 0 && (
+              <div className="py-16 text-center max-w-md mx-auto">
+                <p className="titulo text-2xl text-gray-900">Nenhuma notícia encontrada</p>
+                <p className="mt-2 text-gray-600">
+                  {searchQuery ? 'Tente outra palavra ou um termo mais curto.' : 'Esta editoria ainda não tem notícias publicadas.'}
+                </p>
+              </div>
+            )}
 
-                {/* 2. Destaques Secundários (Grid 2 colunas) */}
-                {secondaryArticles.length > 0 && !searchQuery && (
-                  <section>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {secondaryArticles.map((art) => (
-                        <ArticleCard
-                          key={art.id}
-                          article={art}
-                          variant="secondary"
-                          onSelectArticle={handleSelectArticle}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* 3. Feed de Últimas Notícias */}
-                <section>
-                  <h2 className="text-xl font-black uppercase tracking-tighter text-gray-900 mb-6 border-l-4 border-marca pl-4">
-                    {searchQuery ? 'Resultados' : 'Últimas Notícias'}
-                  </h2>
-
-                  <div className="grid grid-cols-1 gap-4">
-                    {visibleFeed.map((art, idx) => (
-                      <React.Fragment key={art.id}>
-                        <ArticleCard
-                          article={art}
-                          variant="feed"
-                          onSelectArticle={handleSelectArticle}
-                        />
-                        {/* Inserção de publicidade intercalada no feed como no original */}
-                        {idx === 2 && (
-                          <div className="py-4 border-b border-gray-100 flex justify-center w-full">
-                            <AdSlot placement="feed" ads={feedAds} />
-                          </div>
-                        )}
-                      </React.Fragment>
+            {/* Topo: manchete com relacionadas e quatro chamadas em duas colunas */}
+            {heroArticle && !searchQuery && (
+              <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-0 pb-10 mb-10 border-b border-gray-200">
+                <div className="lg:col-span-6 lg:pr-8">
+                  <ArticleCard
+                    article={heroArticle}
+                    variant="hero"
+                    relacionadas={filtrando ? [] : heroRelacionadas}
+                    onSelectArticle={handleSelectArticle}
+                  />
+                </div>
+                {!filtrando && [0, 2].map(inicio => secondaryArticles.slice(inicio, inicio + 2).length > 0 && (
+                  <div key={inicio} className="lg:col-span-3 lg:px-8 lg:border-l border-gray-200 grid sm:grid-cols-2 lg:grid-cols-1 gap-8 content-start">
+                    {secondaryArticles.slice(inicio, inicio + 2).map(art => (
+                      <ArticleCard key={art.id} article={art} variant="secondary" onSelectArticle={handleSelectArticle} />
                     ))}
                   </div>
+                ))}
+              </section>
+            )}
 
-                  {/* Botão Carregar Mais */}
-                  {visibleFeed.length < feedArticles.length && (
-                    <button
-                      onClick={() => setVisibleCount(prev => prev + 5)}
-                      className="w-full mt-8 py-4 bg-gray-100 hover:bg-marca hover:text-white text-gray-900 font-black uppercase tracking-widest text-[12px] md:text-xs transition-all rounded-lg cursor-pointer shadow-xs"
-                    >
-                      Carregar mais notícias
-                    </button>
-                  )}
-                </section>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+              {/* COLUNA PRINCIPAL */}
+              <div className="lg:col-span-8 space-y-12">
+                {/* Um bloco por editoria */}
+                {blocosEditoria.map(({ editoria, itens }, i) => (
+                  <React.Fragment key={editoria.slug}>
+                    <section aria-labelledby={`bloco-${editoria.slug}`}>
+                      <div className="flex items-baseline justify-between gap-4 mb-5 pb-2 border-b-[3px]" style={{ borderColor: corEditoria(editoria.slug) }}>
+                        <h2 id={`bloco-${editoria.slug}`} className="titulo text-[1.75rem]" style={{ color: corEditoria(editoria.slug) }}>
+                          {editoria.name}
+                        </h2>
+                        <button
+                          onClick={() => handleSelectCategory(editoria.slug)}
+                          className="text-sm font-semibold hover:underline cursor-pointer shrink-0"
+                          style={{ color: corEditoria(editoria.slug) }}
+                        >
+                          Ver todas
+                        </button>
+                      </div>
+                      <div className="grid sm:grid-cols-3 gap-6">
+                        {itens.map(art => (
+                          <ArticleCard key={art.id} article={art} variant="secondary" onSelectArticle={handleSelectArticle} />
+                        ))}
+                      </div>
+                    </section>
+                    {i === 1 && (
+                      <div className="flex justify-center w-full">
+                        <AdSlot placement="feed" ads={feedAds} />
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+
+                {/* Demais notícias, da mais recente para a mais antiga */}
+                {visibleFeed.length > 0 && (
+                  <section aria-labelledby="mais-noticias">
+                    {!filtrando && (
+                      <h2 id="mais-noticias" className="titulo text-[1.75rem] text-gray-900 mb-2 pb-2 border-b-[3px] border-gray-900">
+                        Mais notícias
+                      </h2>
+                    )}
+                    <div>
+                      {visibleFeed.map((art, idx) => (
+                        <React.Fragment key={art.id}>
+                          <ArticleCard article={art} variant="feed" onSelectArticle={handleSelectArticle} />
+                          {filtrando && idx === 2 && (
+                            <div className="py-4 border-b border-gray-200 flex justify-center w-full">
+                              <AdSlot placement="feed" ads={feedAds} />
+                            </div>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </div>
+
+                    {visibleFeed.length < feedArticles.length && (
+                      <button
+                        onClick={() => setVisibleCount(prev => prev + 8)}
+                        className="w-full mt-6 py-3.5 rounded-lg border-2 border-marca text-marca hover:bg-marca hover:text-white font-semibold transition-colors cursor-pointer"
+                      >
+                        Mostrar mais notícias
+                      </button>
+                    )}
+                  </section>
+                )}
               </div>
 
               {/* COLUNA LATERAL (4 Colunas) */}
@@ -713,21 +768,17 @@ export default function App() {
                 </div>
 
                 {/* Widget Mais Lidas */}
-                <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                  <h3 className="text-sm font-black uppercase tracking-tighter text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-marca rounded-full"></span>
-                    Mais Lidas
-                  </h3>
-                  <div className="space-y-1">
-                    {mostReadArticles.map((art) => (
-                      <ArticleCard
-                        key={art.id}
-                        article={art}
-                        variant="compact"
-                        onSelectArticle={handleSelectArticle}
-                      />
+                <section aria-labelledby="mais-lidas">
+                  <h2 id="mais-lidas" className="titulo text-2xl text-gray-900 pb-2 border-b-[3px] border-gray-900">
+                    Mais lidas
+                  </h2>
+                  <ol>
+                    {mostReadArticles.map((art, i) => (
+                      <li key={art.id}>
+                        <ArticleCard article={art} variant="compact" posicao={i + 1} onSelectArticle={handleSelectArticle} />
+                      </li>
                     ))}
-                  </div>
+                  </ol>
                 </section>
 
                 {/* Espaço Publicitário Formato 300x600 (Vertical - Carrossel Independente) */}
@@ -736,13 +787,13 @@ export default function App() {
                 </div>
 
                 {/* Widget Newsletter 1 Minuto News */}
-                <section className="bg-gray-900 text-white p-6 md:p-8 rounded-xl shadow-lg relative overflow-hidden">
+                <section className="bg-marca-escuro text-white p-6 md:p-7 rounded-lg relative overflow-hidden">
                   <div className="relative z-10">
-                    <h3 className="text-xl font-black uppercase tracking-tight mb-2 italic">
-                      1 Minuto <span className="text-marca">News</span>
-                    </h3>
-                    <p className="text-gray-400 text-xs mb-6 leading-relaxed">
-                      As principais notícias de Sergipe e do Brasil, direto no seu e-mail todos os dias.
+                    <h2 className="titulo text-2xl mb-2">
+                      As notícias do dia no seu e-mail
+                    </h2>
+                    <p className="text-blue-100 text-sm mb-5 leading-relaxed">
+                      Um resumo rápido de Itabaiana, Sergipe e do Brasil, uma vez por dia.
                     </p>
 
                     {sidebarSubscribed ? (
@@ -758,13 +809,14 @@ export default function App() {
                           placeholder="Seu melhor e-mail"
                           value={sidebarEmail}
                           onChange={(e) => setSidebarEmail(e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-marca/50 transition-all outline-none text-white placeholder:text-gray-500"
+                          aria-label="Seu e-mail"
+                          className="w-full bg-white/10 border border-white/25 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-marca-ciano outline-none text-white placeholder:text-blue-200"
                         />
                         <button
                           type="submit"
-                          className="w-full bg-marca hover:bg-marca-escuro text-white font-black uppercase tracking-widest text-xs py-3 rounded-lg transition-all shadow-md cursor-pointer"
+                          className="w-full bg-marca-ciano hover:bg-white text-marca-escuro font-semibold py-3 rounded-lg transition-colors cursor-pointer"
                         >
-                          Inscrever-se Grátis
+                          Receber o resumo
                         </button>
                       </form>
                     )}

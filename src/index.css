@@ -23,6 +23,39 @@
   text-wrap: balance;
 }
 
+/* Títulos de notícia: Archivo levemente condensada. Cabe mais manchete por linha,
+   o que combina com a proposta de leitura rápida do portal. */
+@layer components {
+  .titulo {
+    font-family: 'Archivo Variable', 'Public Sans Variable', system-ui, sans-serif;
+    font-stretch: 84%;
+    font-weight: 750;
+    letter-spacing: -0.012em;
+    line-height: 1.12;
+  }
+  .titulo-manchete {
+    font-size: clamp(1.75rem, 1.1rem + 2.4vw, 3rem);
+    line-height: 1.04;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  /* Nome da editoria: mesma cor do título, sem caixa alta */
+  .rotulo-editoria {
+    font-family: 'Archivo Variable', 'Public Sans Variable', system-ui, sans-serif;
+    font-stretch: 90%;
+    font-weight: 650;
+  }
+}
+/* Foco visível para navegação por teclado nas chamadas */
+.chamada:focus-visible {
+  outline: 3px solid var(--color-marca-ciano);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chamada img { transition: none !important; transform: none !important; }
+}
+
 /* Texto da matéria: linhas de leitura confortável, parágrafos espaçados, intertítulos, citações,
    listas e links no cor principal da marca */
 .materia-texto {

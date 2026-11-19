@@ -1,12 +1,16 @@
 import React from 'react';
-import { Play } from 'lucide-react';
+import { Play, Timer } from 'lucide-react';
 import { Article } from '../../types/database';
-import { ViewCounter } from './ViewCounter';
+import { corEditoria, tituloExibicao, minutosDeLeitura } from '../../lib/editorias';
 
 interface ArticleCardProps {
   article: Article;
   variant?: 'hero' | 'secondary' | 'feed' | 'compact';
   onSelectArticle: (article: Article) => void;
+  // Manchete: notícias da mesma editoria listadas na faixa abaixo da foto
+  relacionadas?: Article[];
+  // Mais lidas: posição no ranking
+  posicao?: number;
 }
 
 // Formatação amigável de tempo em português
@@ -19,190 +23,144 @@ export const formatRelativeTime = (isoDate: string): string => {
   if (diffHours === 1) return 'há cerca de 1 hora';
   if (diffHours < 24) return `há cerca de ${diffHours} horas`;
   if (diffDays === 1) return 'há 1 dia';
-  return `há ${diffDays} dias`;
+  if (diffDays < 30) return `há ${diffDays} dias`;
+  return new Date(isoDate).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' });
 };
+
+export const Leitura: React.FC<{ article: Article; className?: string }> = ({ article, className = '' }) => (
+  <span className={`inline-flex items-center gap-1 ${className}`}>
+    <Timer className="w-3.5 h-3.5" aria-hidden="true" />
+    {minutosDeLeitura(article)} min de leitura
+  </span>
+);
+
+const SeloVideo: React.FC = () => (
+  <span className="absolute left-3 bottom-3 inline-flex items-center gap-1 px-2 py-1 rounded bg-black/75 text-white text-xs font-semibold">
+    <Play className="w-3 h-3 fill-current" aria-hidden="true" /> Vídeo
+  </span>
+);
 
 export const ArticleCard: React.FC<ArticleCardProps> = ({
   article,
   variant = 'feed',
-  onSelectArticle
+  onSelectArticle,
+  relacionadas = [],
+  posicao
 }) => {
-  const handleClick = (e: React.MouseEvent) => {
+  const abrir = (a: Article) => (e: React.MouseEvent) => {
     e.preventDefault();
-    onSelectArticle(article);
+    onSelectArticle(a);
   };
+  const cor = corEditoria(article.category);
+  const titulo = tituloExibicao(article);
+  const href = `/noticia/${article.slug}`;
 
-  // 1. VARIANTE HERO (Destaque Principal)
+  // 1. MANCHETE: foto grande com o título por cima e faixa de relacionadas na cor da editoria
   if (variant === 'hero') {
     return (
-      <article className="card-shadow">
-        <a
-          href={`/noticia/${article.slug}`}
-          onClick={handleClick}
-          className="group relative block w-full aspect-[16/9] md:aspect-[21/9] overflow-hidden rounded-xl bg-gray-100 shadow-2xl cursor-pointer"
-        >
+      <article className="overflow-hidden rounded-lg bg-gray-900">
+        <a href={href} onClick={abrir(article)} className="chamada group relative block aspect-[4/3] sm:aspect-[16/11] lg:aspect-square cursor-pointer">
           <img
-            alt={article.title}
-            loading="lazy"
+            alt=""
             src={article.imageUrl}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
+            fetchPriority="high"
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent"></div>
-          <div className="absolute inset-0 flex flex-col justify-end p-5 md:p-12">
-            <div className="max-w-4xl w-full">
-              <div className="flex flex-wrap items-center gap-2 mb-4">
-                <span className="inline-block px-3 py-1 bg-marca text-white text-[10px] font-black uppercase tracking-widest rounded-md shadow-lg">
-                  {article.category}
-                </span>
-                {article.isVideo && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-md">
-                    <Play className="w-3 h-3 fill-current" /> Vídeo
-                  </span>
-                )}
-              </div>
-              <h2 className="text-hero font-black text-white group-hover:text-blue-300 transition-colors tracking-tighter mb-4 line-clamp-3">
-                {article.title}
-              </h2>
-              <div className="flex flex-wrap items-center gap-3 md:gap-4 text-[10px] md:text-[10px] text-gray-500 font-black uppercase tracking-[0.15em] md:tracking-[0.2em]">
-                <span>{formatRelativeTime(article.createdAt)}</span>
-                <div className="w-8 h-px bg-white/20"></div>
-                <ViewCounter views={article.viewsCount} />
-                <span className="text-blue-400 group-hover:translate-x-1 transition-transform ml-auto font-black">
-                  Leia Mais →
-                </span>
-              </div>
-            </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
+          {article.isVideo && <span className="absolute top-4 left-4"><span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-black/75 text-white text-xs font-semibold"><Play className="w-3 h-3 fill-current" aria-hidden="true" /> Vídeo</span></span>}
+          <div className="absolute inset-x-0 bottom-0 p-5 md:p-7">
+            <span className="rotulo-editoria inline-block mb-3 px-2 py-0.5 rounded text-sm text-white" style={{ backgroundColor: cor }}>
+              {article.category}
+            </span>
+            <h2 className="titulo titulo-manchete text-white group-hover:underline decoration-2 underline-offset-4">
+              {titulo}
+            </h2>
           </div>
         </a>
+        {relacionadas.length > 0 && (
+          <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 px-5 md:px-7 py-4 text-white" style={{ backgroundColor: cor }}>
+            {relacionadas.slice(0, 2).map(r => (
+              <li key={r.id} className="flex gap-2">
+                <span className="mt-2 w-1.5 h-1.5 rounded-full bg-white/80 shrink-0" aria-hidden="true" />
+                <a href={`/noticia/${r.slug}`} onClick={abrir(r)} className="chamada titulo text-[17px] leading-snug hover:underline cursor-pointer">
+                  {tituloExibicao(r)}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </article>
     );
   }
 
-  // 2. VARIANTE SECONDARY (Grid 2 colunas)
+  // 2. CHAMADA: foto em cima, título na cor da editoria
   if (variant === 'secondary') {
     return (
-      <article className="h-full">
-        <a
-          href={`/noticia/${article.slug}`}
-          onClick={handleClick}
-          className="group flex flex-col h-full bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-xl hover:border-marca/20 transition-all duration-300 cursor-pointer"
-        >
-          <div className="relative aspect-video overflow-hidden bg-gray-100">
+      <article>
+        <a href={href} onClick={abrir(article)} className="chamada group block cursor-pointer">
+          <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-gray-100">
             <img
-              alt={article.title}
+              alt=""
               loading="lazy"
               src={article.imageUrl}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            {article.isVideo && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-14 h-14 rounded-full bg-marca/90 flex items-center justify-center text-white shadow-2xl scale-90 group-hover:scale-100 transition-all duration-500">
-                  <Play className="w-7 h-7 fill-current ml-1" />
-                </div>
-              </div>
-            )}
+            {article.isVideo && <SeloVideo />}
           </div>
-          <div className="p-4 md:p-5 flex flex-col flex-1">
-            <div className="flex justify-between items-start mb-2 md:mb-3">
-              <span className="text-marca text-[10px] font-black uppercase tracking-widest border-b-2 border-marca/20 pb-0.5">
-                {article.category}
-              </span>
-              {article.isVideo && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-sm">
-                  <Play className="w-2.5 h-2.5 fill-current" /> Vídeo
-                </span>
-              )}
-            </div>
-            <h3 className="text-base md:text-lg font-black text-gray-900 leading-[1.2] group-hover:text-marca transition-colors line-clamp-2 tracking-tight">
-              {article.title}
-            </h3>
-            {article.subtitle && (
-              <p className="mt-2 text-gray-500 text-xs line-clamp-2 leading-relaxed font-medium">
-                {article.subtitle}
-              </p>
-            )}
-            <div className="mt-auto pt-4 border-t border-gray-50 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest">
-                  {formatRelativeTime(article.createdAt)}
-                </span>
-                <ViewCounter views={article.viewsCount} />
-              </div>
-              <span className="text-marca text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">
-                Ler agora →
-              </span>
-            </div>
-          </div>
+          <span className="rotulo-editoria block mt-3 text-sm" style={{ color: cor }}>{article.category}</span>
+          <h3 className="titulo text-[1.375rem] mt-1 group-hover:underline decoration-2 underline-offset-2" style={{ color: cor }}>
+            {titulo}
+          </h3>
+          {article.subtitle && (
+            <p className="mt-2 text-[15px] leading-relaxed text-gray-700 line-clamp-2">{article.subtitle}</p>
+          )}
+          <p className="mt-2 text-[13px] text-gray-500 flex flex-wrap gap-x-3">
+            <span>{formatRelativeTime(article.createdAt)}</span>
+            <Leitura article={article} />
+          </p>
         </a>
       </article>
     );
   }
 
-  // 3. VARIANTE FEED (Lista de últimas notícias)
+  // 3. LISTA: foto pequena à esquerda, título colorido
   if (variant === 'feed') {
     return (
-      <article>
-        <a
-          href={`/noticia/${article.slug}`}
-          onClick={handleClick}
-          className="group flex gap-4 md:gap-5 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors px-2 rounded-lg cursor-pointer"
-        >
-          <div className="relative w-28 md:w-32 h-20 md:h-24 shrink-0 rounded-lg bg-gray-100 overflow-hidden">
-            <img
-              alt={article.title}
-              loading="lazy"
-              src={article.imageUrl}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
+      <article className="border-b border-gray-200 last:border-0">
+        <a href={href} onClick={abrir(article)} className="chamada group flex gap-4 py-4 cursor-pointer">
+          <div className="relative w-28 sm:w-40 aspect-[4/3] shrink-0 overflow-hidden rounded-md bg-gray-100">
+            <img alt="" loading="lazy" src={article.imageUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
             {article.isVideo && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                <Play className="w-5 h-5 text-white fill-current" />
-              </div>
+              <span className="absolute inset-0 flex items-center justify-center bg-black/25">
+                <Play className="w-6 h-6 text-white fill-current" aria-label="Vídeo" />
+              </span>
             )}
           </div>
-          <div className="flex flex-col justify-center gap-1 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-marca text-[10px] font-black uppercase tracking-widest">
-                {article.category}
-              </span>
-            </div>
-            <h4 className="text-sm md:text-base font-bold text-gray-900 leading-tight group-hover:text-marca transition-colors line-clamp-2">
-              {article.title}
-            </h4>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="text-[10px] md:text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                {formatRelativeTime(article.createdAt)}
-              </span>
-              <ViewCounter views={article.viewsCount} />
-            </div>
+          <div className="min-w-0">
+            <span className="rotulo-editoria text-[13px]" style={{ color: cor }}>{article.category}</span>
+            <h3 className="titulo text-lg sm:text-xl mt-0.5 group-hover:underline decoration-2 underline-offset-2" style={{ color: cor }}>
+              {titulo}
+            </h3>
+            <p className="mt-1.5 text-[13px] text-gray-500 flex flex-wrap gap-x-3">
+              <span>{formatRelativeTime(article.createdAt)}</span>
+              <Leitura article={article} />
+            </p>
           </div>
         </a>
       </article>
     );
   }
 
-  // 4. VARIANTE COMPACT (Mais lidas da Sidebar)
+  // 4. MAIS LIDAS: ranking numerado
   return (
-    <article>
-      <a
-        href={`/noticia/${article.slug}`}
-        onClick={handleClick}
-        className="group py-3 border-b border-gray-50 last:border-0 block hover:pl-2 transition-all cursor-pointer"
-      >
-        <div className="flex items-start gap-3">
-          <div className="w-1.5 h-1.5 bg-marca rounded-full mt-2 shrink-0 group-hover:scale-150 transition-transform"></div>
-          <div className="flex flex-col gap-1">
-            <h4 className="text-sm font-black text-gray-900 group-hover:text-marca transition-colors leading-snug tracking-tight line-clamp-2">
-              {article.title}
-            </h4>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">
-                {formatRelativeTime(article.createdAt)}
-              </span>
-              <ViewCounter views={article.viewsCount} />
-            </div>
-          </div>
+    <article className="border-b border-gray-200 last:border-0">
+      <a href={href} onClick={abrir(article)} className="chamada group flex gap-4 py-3.5 cursor-pointer">
+        {posicao !== undefined && (
+          <span className="titulo text-4xl leading-none text-marca-escuro/25 w-7 shrink-0 text-right" aria-hidden="true">{posicao}</span>
+        )}
+        <div className="min-w-0">
+          <span className="rotulo-editoria text-[13px]" style={{ color: cor }}>{article.category}</span>
+          <h4 className="titulo text-[17px] text-gray-900 group-hover:underline decoration-2 underline-offset-2">{titulo}</h4>
         </div>
       </a>
     </article>
