@@ -1485,6 +1485,7 @@ export const ADMINISTRADORES_MASTER = [
   'noticiasem1minutoitabaiana@gmail.com',
   'tomsilvaconsignado@gmail.com',
   'leowander@hotmail.com.br',
+  'wemersonnobre@outlook.com',
 ];
 export const isAdminMaster = (email?: string | null): boolean =>
   !!email && ADMINISTRADORES_MASTER.includes(email.trim().toLowerCase());

@@ -1994,7 +1994,8 @@ REVOKE ALL ON public.administradores_master FROM anon, authenticated;
 INSERT INTO public.administradores_master (email) VALUES
   ('noticiasem1minutoitabaiana@gmail.com'),
   ('tomsilvaconsignado@gmail.com'),
-  ('leowander@hotmail.com.br')
+  ('leowander@hotmail.com.br'),
+  ('wemersonnobre@outlook.com')
 ON CONFLICT (email) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.e_admin_master(p_email TEXT)
