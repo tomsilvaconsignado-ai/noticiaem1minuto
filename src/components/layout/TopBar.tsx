@@ -75,7 +75,7 @@ export const TopBar: React.FC = () => {
           <Icone className="w-4 h-4 text-marca" />
           <strong className="font-semibold text-gray-900">{Math.round(dados!.temp!)}°</strong>
           {typeof dados?.max === 'number' && typeof dados?.min === 'number' && (
-            <span className="text-gray-500">máx. {Math.round(dados.max)}° mín. {Math.round(dados.min)}°</span>
+            <span className="hidden sm:inline text-gray-500">máx. {Math.round(dados.max)}° mín. {Math.round(dados.min)}°</span>
           )}
           <span>hoje em Itabaiana</span>
         </span>

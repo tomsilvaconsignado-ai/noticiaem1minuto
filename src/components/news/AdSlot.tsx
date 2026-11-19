@@ -77,6 +77,16 @@ export const AdSlot: React.FC<AdSlotProps> = ({
   const [mediaError, setMediaError] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Encaixe da arte na caixa: se a proporção da arte for muito diferente da caixa
+  // (ex.: vídeo 800x600 num espaço 300x600), mostra a arte inteira em vez de cortar a marca
+  const [encaixePorAnuncio, setEncaixePorAnuncio] = useState<Record<string, 'cover' | 'contain'>>({});
+  const avaliarEncaixe = (id: string, larguraArte: number, alturaArte: number, el: HTMLElement) => {
+    if (!larguraArte || !alturaArte || !el.clientWidth || !el.clientHeight) return;
+    const diferenca = Math.abs(Math.log((larguraArte / alturaArte) / (el.clientWidth / el.clientHeight)));
+    const encaixe = diferenca > Math.log(1.25) ? 'contain' : 'cover';
+    setEncaixePorAnuncio(prev => (prev[id] === encaixe ? prev : { ...prev, [id]: encaixe }));
+  };
+
   // Sincroniza se os props mudarem
   useEffect(() => {
     if (propAdsList && propAdsList.length > 0) {
@@ -395,7 +405,11 @@ export const AdSlot: React.FC<AdSlotProps> = ({
           aria-label={`${currentAd.sponsorName} - ${currentAd.title}`}
         >
           <div
-            className={`w-full h-full relative flex items-center justify-center bg-gray-900/5 overflow-hidden ${
+            className={`w-full h-full relative flex items-center justify-center overflow-hidden ${
+              encaixePorAnuncio[currentAd.id] === 'contain'
+                ? (currentAd.mediaType === 'video' ? 'bg-marca-escuro' : 'bg-white')
+                : 'bg-gray-900/5'
+            } ${
               !determinedFormat ? aspectRatioClass : ''
             }`}
           >
@@ -424,7 +438,8 @@ export const AdSlot: React.FC<AdSlotProps> = ({
                 muted
                 playsInline
                 onError={() => setMediaError(true)}
-                className="w-full h-full object-cover"
+                onLoadedMetadata={(e) => avaliarEncaixe(currentAd.id, e.currentTarget.videoWidth, e.currentTarget.videoHeight, e.currentTarget)}
+                className={`w-full h-full ${encaixePorAnuncio[currentAd.id] === 'contain' ? 'object-contain' : 'object-cover'}`}
               />
             ) : (
               <img
@@ -434,7 +449,8 @@ export const AdSlot: React.FC<AdSlotProps> = ({
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 onError={() => setMediaError(true)}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover/ad:scale-[1.01]"
+                onLoad={(e) => avaliarEncaixe(currentAd.id, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight, e.currentTarget)}
+                className={`w-full h-full ${encaixePorAnuncio[currentAd.id] === 'contain' ? 'object-contain' : 'object-cover'} transition-transform duration-500 group-hover/ad:scale-[1.01]`}
               />
             )}
           </div>

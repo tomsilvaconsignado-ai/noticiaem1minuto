@@ -62,7 +62,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({
     : !article.title?.trim() ? 'A matéria precisa de um título para ser compartilhada.'
     : !hasShareablePhoto(article.imageUrl) ? 'A matéria precisa de uma foto para ser compartilhada.'
     : null;
-  const preview = usePreviewStatus(getArticleCanonicalUrl(getArticlePathKey(article)), article.title || '', !shareBlockReason);
+  const preview = usePreviewStatus(getArticleCanonicalUrl(getArticlePathKey(article)), article.title ? tituloExibicao(article) : '', !shareBlockReason);
 
   const handleShare = async (platform: 'whatsapp' | 'facebook' | 'twitter' | 'copy') => {
     if (shareBlockReason) {

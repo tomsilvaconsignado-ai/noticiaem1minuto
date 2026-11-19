@@ -2625,7 +2625,7 @@ export const DEFAULT_PORTAL_SETTINGS: PortalSettings = {
   presentationPhrase: 'Informação rápida, confiável e sem enrolação, de Itabaiana para Sergipe',
   shortInstitutionalText: 'O portal Notícia em 1 Minuto é comprometido com a verdade e a informação de qualidade para todo o estado de Sergipe.',
   portalDescription: 'Portal de notícias e classificados de Itabaiana e de todo o estado de Sergipe.',
-  logoBadgeText: 'ONLINE',
+  logoBadgeText: '',
 
   // 2. Contatos do Portal & Visibilidade
   contactEmail: 'noticiasem1minutoitabaiana@gmail.com',
@@ -2639,16 +2639,16 @@ export const DEFAULT_PORTAL_SETTINGS: PortalSettings = {
   showCommercialAddress: false,
   city: 'Itabaiana',
   state: 'SE',
-  openingHours: 'Segunda a Sexta, das 08h às 18h',
-  showOpeningHours: true,
+  openingHours: '',
+  showOpeningHours: false,
 
   // 3. Informações Institucionais do Rodapé
-  footerPresentation: 'O portal Notícia em 1 Minuto é comprometido com a verdade e a informação de qualidade para todo o estado de Sergipe.',
-  footerAboutText: 'Cobertura em tempo real dos 75 municípios sergipanos, com política, cidades, economia, polícia e classificados.',
+  footerPresentation: 'O Notícia em 1 Minuto leva as notícias de Itabaiana, do Agreste sergipano e do Brasil de forma rápida, confiável e sem enrolação.',
+  footerAboutText: 'Cidades, política, esporte, entretenimento, saúde e classificados de Itabaiana e região.',
   footerClosingPhrase: 'Informação rápida, confiável e sem enrolação.',
   copyrightText: 'Notícia em 1 Minuto. Todos os direitos reservados.',
   referenceYear: '2026',
-  responsibleCompany: 'Notícia em 1 Minuto Comunicação & Publicidade LTDA',
+  responsibleCompany: 'Notícia em 1 Minuto',
   additionalFooterInfo: 'Fundado em Itabaiana - Sergipe',
 
   // 4. Redes Sociais
@@ -2665,29 +2665,29 @@ export const DEFAULT_PORTAL_SETTINGS: PortalSettings = {
   institutionalPages: {
     sobreNos: {
       title: 'Sobre o Notícia em 1 Minuto',
-      leadParagraph: 'O Notícia em 1 Minuto consolidou-se como a principal referência jornalística de Itabaiana e de todo o estado de Sergipe. Nascido com o propósito de levar informação ágil, ética e com apuração rigorosa, nosso portal conecta os cidadãos aos acontecimentos que moldam a sociedade.',
+      leadParagraph: 'O Notícia em 1 Minuto é um portal de notícias de Itabaiana, Sergipe. Nasceu com uma proposta simples: informação rápida, confiável e sem enrolação, para quem quer saber o que aconteceu sem perder tempo.',
       historyParagraphs: [
-        'Com mais de uma década de presença comunicacional na região Sul e em todo o território sergipano, o portal acompanha diariamente as transformações econômicas, culturais e políticas.',
-        'Nossa redação atua com independência e responsabilidade cívica, assegurando a pluralidade de vozes e a verdade apurada.'
+        'Acompanhamos o dia a dia de Itabaiana e do Agreste sergipano, além das principais notícias de Sergipe, do Brasil e do mundo, com textos curtos, vídeos e cobertura nas redes sociais.',
+        'Nossa redação trabalha com independência e responsabilidade, ouvindo os diferentes lados e checando as informações antes de publicar.'
       ],
-      mission: 'Informar com imparcialidade, verdade e independência, promovendo o debate construtivo e o desenvolvimento regional.',
-      values: 'Compromisso com o leitor, checagem de fatos, respeito à diversidade e valorização da cultura sergipana.',
-      coverage: 'Presente diariamente nos 75 municípios de Sergipe e com audiência em todo o território nacional.'
+      mission: 'Informar a população de Itabaiana e região de forma rápida, clara e verdadeira.',
+      values: 'Compromisso com o leitor, checagem de fatos, respeito às pessoas e valorização da nossa região.',
+      coverage: 'Itabaiana e Agreste sergipano, com as principais notícias de Sergipe, do Brasil e do mundo.'
     },
     expediente: {
-      directorName: 'Ítallo Nascimento',
-      directorRole: 'Direção Geral & Editor-Chefe',
+      directorName: 'Redação Notícia em 1 Minuto',
+      directorRole: 'Direção e redação',
       directorEmail: 'noticiasem1minutoitabaiana@gmail.com',
-      commercialDept: 'Departamento Comercial & Marketing',
+      commercialDept: 'Comercial e publicidade',
       commercialContact: '(79) 99963-8993',
       newsroomLocations: 'Itabaiana e região',
-      coverageHours: 'Cobertura estadual 24 horas',
+      coverageHours: 'Itabaiana, Agreste sergipano e Brasil',
       administrativeHeadquarters: 'Itabaiana - Sergipe'
     },
     privacidade: {
       introText: 'O Notícia em 1 Minuto respeita a privacidade de seus leitores e usuários e cumpre as disposições da Lei Geral de Proteção de Dados Pessoais (LGPD - Lei nº 13.709/2018).',
-      dataCollectionText: 'Coletamos informações cadastrais básicas (nome e e-mail) exclusivamente quando fornecidas voluntariamente para fins de autenticação, publicação de classificados ou subscrição da newsletter.',
-      securityText: 'Os dados de usuários e credenciais são gerenciados com proteção e criptografia de ponta a ponta, garantindo que suas senhas e dados confidenciais nunca sejam expostos.',
+      dataCollectionText: 'Coletamos informações cadastrais básicas (nome e e-mail) exclusivamente quando fornecidas voluntariamente para fins de autenticação, publicação de classificados ou inscrição na newsletter.',
+      securityText: 'As senhas são guardadas de forma criptografada e o acesso aos dados de cadastro é restrito à equipe responsável pelo portal.',
       cookiesText: 'Utilizamos cookies estritamente para métricas estatísticas de visualização, sessão do usuário e preferências de leitura.',
       userRightsText: 'O titular dos dados tem o direito de solicitar a qualquer momento a confirmação, retificação ou exclusão de suas informações da nossa base.',
       dpoContact: 'noticiasem1minutoitabaiana@gmail.com'

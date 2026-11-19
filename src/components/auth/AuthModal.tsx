@@ -292,7 +292,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="flex items-center gap-2 mb-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-300">
-                {configured ? 'Supabase Auth Conectado' : 'Notícia em 1 Minuto • Acesso Seguro'}
+                Notícia em 1 Minuto • Acesso seguro
               </span>
             </div>
 

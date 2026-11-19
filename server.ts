@@ -118,7 +118,7 @@ const DEFAULT_SERVER_USERS: UserProfile[] = [
   {
     id: 'usr-editor-1',
     email: 'noticiasem1minutoitabaiana@gmail.com',
-    fullName: 'Ítallo Nascimento',
+    fullName: 'Editor',
     role: 'admin',
     avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Editor',
     interests: ['Política', 'Cidades', 'Geral'],

@@ -28,10 +28,33 @@ export const InstitutionalPage: React.FC<InstitutionalPageProps> = ({ page, onBa
     return () => window.removeEventListener('n1m_portal_settings_updated', handleUpdate);
   }, []);
 
+  // O site não tem servidor para receber o formulário: a solicitação vai para o WhatsApp
+  // comercial já escrita, e o anunciante só confirma o envio
+  const FORMATOS_ANUNCIO: Record<string, string> = {
+    header: 'Banner no topo (728x90 ou 970x90)',
+    sidebar_300x300: 'Quadrado na lateral (300x300)',
+    sidebar_300x600: 'Vertical na lateral (300x600)',
+    in_content: 'Banner entre as notícias (728x90)',
+    article: 'Dentro das matérias (300x300)',
+    custom: 'Campanha personalizada ou publieditorial',
+  };
   const handleAdSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const numero = (settings.whatsappNumber || settings.contactPhone || '').replace(/\D/g, '');
+    const texto = [
+      'Olá! Quero anunciar no Notícia em 1 Minuto.',
+      `Empresa: ${adForm.company}`,
+      `Responsável: ${adForm.contactName}`,
+      `Telefone: ${adForm.phone}`,
+      `E-mail: ${adForm.email}`,
+      `Formato: ${FORMATOS_ANUNCIO[adForm.placement] || adForm.placement}`,
+      adForm.message ? `Mensagem: ${adForm.message}` : '',
+    ].filter(Boolean).join('\n');
+    const destino = numero
+      ? `https://wa.me/${numero.length <= 11 ? '55' + numero : numero}?text=${encodeURIComponent(texto)}`
+      : `mailto:${settings.contactEmail}?subject=${encodeURIComponent('Quero anunciar')}&body=${encodeURIComponent(texto)}`;
+    window.open(destino, '_blank', 'noopener,noreferrer');
     setSent(true);
-    setTimeout(() => setSent(false), 6000);
     setAdForm({
       company: '',
       contactName: '',
@@ -113,17 +136,17 @@ export const InstitutionalPage: React.FC<InstitutionalPageProps> = ({ page, onBa
             </h1>
           </div>
           <p className="text-sm text-gray-600 leading-relaxed">
-            Estrutura editorial e administrativa da {settings.officialName} {settings.logoBadgeText ? `(${settings.logoBadgeText})` : ''} - Sergipe.
+            Equipe e contatos do {settings.officialName}, {settings.city || 'Itabaiana'} - {settings.state || 'SE'}.
           </p>
 
           <div className="space-y-4 pt-4 border-t border-gray-100 text-sm">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 bg-gray-50 rounded-lg">
                 <p className="text-xs font-black uppercase text-gray-500">
-                  {exped.directorRole || 'Direção Geral & Editor-Chefe'}
+                  {exped.directorRole || 'Direção e redação'}
                 </p>
                 <p className="font-bold text-gray-900 text-base mt-1">
-                  {exped.directorName || 'Ítallo Nascimento'}
+                  {exped.directorName || 'Redação Notícia em 1 Minuto'}
                 </p>
                 <p className="text-xs text-gray-500">
                   {exped.directorEmail || settings.contactEmail}
@@ -230,8 +253,8 @@ export const InstitutionalPage: React.FC<InstitutionalPageProps> = ({ page, onBa
             <div className="p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3 text-green-800">
               <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" />
               <div>
-                <p className="font-bold text-sm">Proposta recebida com sucesso!</p>
-                <p className="text-xs">Nossa equipe comercial entrará em contato em breve pelo telefone/WhatsApp informado.</p>
+                <p className="font-bold text-sm">Sua mensagem foi aberta no WhatsApp</p>
+                <p className="text-xs">Confira os dados e toque em enviar para falar com o comercial. Se o WhatsApp não abriu, chame no {settings.whatsappNumber || settings.contactPhone}.</p>
               </div>
             </div>
           )}
@@ -304,11 +327,12 @@ export const InstitutionalPage: React.FC<InstitutionalPageProps> = ({ page, onBa
                   onChange={(e) => setAdForm({ ...adForm, placement: e.target.value })}
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 outline-none focus:border-marca focus:ring-2 focus:ring-marca/10"
                 >
-                  <option value="header">Super Banner Topo (728x90)</option>
-                  <option value="sidebar">Quadrado Barra Lateral (300x250 / 300x600)</option>
-                  <option value="in_content">Banner Entre Notícias (728x90)</option>
-                  <option value="classifieds">Destaque nos Classificados</option>
-                  <option value="custom">Campanha Personalizada / Publieditorial</option>
+                  <option value="header">Banner no topo (728x90 ou 970x90)</option>
+                  <option value="sidebar_300x300">Quadrado na lateral (300x300)</option>
+                  <option value="sidebar_300x600">Vertical na lateral (300x600)</option>
+                  <option value="in_content">Banner entre as notícias (728x90)</option>
+                  <option value="article">Dentro das matérias (300x300)</option>
+                  <option value="custom">Campanha personalizada ou publieditorial</option>
                 </select>
               </div>
 
@@ -386,9 +410,9 @@ export const InstitutionalPage: React.FC<InstitutionalPageProps> = ({ page, onBa
               </div>
 
               <div className="p-4 bg-white rounded-xl border border-gray-200/80">
-                <p className="text-[10px] font-black uppercase text-gray-500">Público Qualificado</p>
+                <p className="text-[10px] font-black uppercase text-gray-500">Público</p>
                 <p className="text-xs text-gray-700 mt-1 font-medium">
-                  Audiência diária em todos os 75 municípios de Sergipe com lealdade de leitura e alta taxa de engajamento regional.
+                  Leitores de Itabaiana e do Agreste sergipano, no site, na newsletter diária e nas redes sociais do portal.
                 </p>
               </div>
             </div>

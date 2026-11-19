@@ -1,4 +1,8 @@
 import { Article, ClassifiedItem } from '../types/database';
+import { tituloExibicao } from './editorias';
+
+// Título para exibição (aba, prévia de compartilhamento): títulos em CAIXA ALTA viram frase normal
+const tituloDe = (a: Article): string => tituloExibicao(a);
 
 /**
  * Utilitários de SEO e Metadados Open Graph para WhatsApp e Redes Sociais
@@ -134,7 +138,7 @@ export const getAbsoluteImageUrl = (imageUrl?: string, customOrigin?: string, ar
  */
 export const getWhatsAppShareData = (article: Article, customOrigin?: string) => {
   const canonicalUrl = getArticleCanonicalUrl(getArticlePathKey(article), customOrigin);
-  const title = article.title.trim();
+  const title = tituloDe(article).trim();
   // Formato ideal para o WhatsApp: Título da notícia + link permanente
   // O WhatsApp faz o scraping da página informada no link para carregar a imagem e resumo
   const text = `${title}\n\n${canonicalUrl}`;
@@ -160,7 +164,7 @@ export const generateOpenGraphHtml = (article: Article, origin: string): string 
   const rawDesc = article.subtitle?.trim() || stripHtml(article.content);
   const description = rawDesc.length > 160 ? rawDesc.slice(0, 157) + '...' : rawDesc;
 
-  const pageTitle = `${article.title} - ${portalName}`;
+  const pageTitle = `${tituloDe(article)} - ${portalName}`;
   const publishedTime = article.createdAt || new Date().toISOString();
   const modifiedTime = article.updatedAt || publishedTime;
   const authorName = article.author || 'Redação Notícia em 1 Minuto';
@@ -177,12 +181,12 @@ export const generateOpenGraphHtml = (article: Article, origin: string): string 
     <!-- Open Graph / Facebook / WhatsApp / LinkedIn -->
     <meta property="og:site_name" content="${escapeHtml(portalName)}" />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="${escapeHtml(article.title)}" />
+    <meta property="og:title" content="${escapeHtml(tituloDe(article))}" />
     <meta property="og:description" content="${escapeHtml(description)}" />
     <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
     <meta property="og:image" content="${escapeHtml(imageUrl)}" />
     <meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}" />
-    <meta property="og:image:alt" content="${escapeHtml(article.title)}" />
+    <meta property="og:image:alt" content="${escapeHtml(tituloDe(article))}" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:locale" content="pt_BR" />
@@ -195,10 +199,10 @@ export const generateOpenGraphHtml = (article: Article, origin: string): string 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@noticiasem1minuto" />
     <meta name="twitter:creator" content="@noticiasem1minuto" />
-    <meta name="twitter:title" content="${escapeHtml(article.title)}" />
+    <meta name="twitter:title" content="${escapeHtml(tituloDe(article))}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
-    <meta name="twitter:image:alt" content="${escapeHtml(article.title)}" />
+    <meta name="twitter:image:alt" content="${escapeHtml(tituloDe(article))}" />
 
     <!-- Link Canônico -->
     <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
@@ -208,7 +212,7 @@ export const generateOpenGraphHtml = (article: Article, origin: string): string 
     ${JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'NewsArticle',
-      'headline': article.title,
+      'headline': tituloDe(article),
       'description': description,
       'image': [imageUrl],
       'datePublished': publishedTime,
@@ -251,7 +255,7 @@ export const updateClientHeadForArticle = (article: Article) => {
   const canonicalUrl = getArticleCanonicalUrl(getArticlePathKey(article), origin);
   const imageUrl = getAbsoluteImageUrl(article.imageUrl, origin, article.slug || article.id);
   const portalName = 'Notícia em 1 Minuto';
-  const pageTitle = `${article.title} - ${portalName}`;
+  const pageTitle = `${tituloDe(article)} - ${portalName}`;
   const rawDesc = article.subtitle?.trim() || stripHtml(article.content);
   const description = rawDesc.length > 160 ? rawDesc.slice(0, 157) + '...' : rawDesc;
 
@@ -274,16 +278,16 @@ export const updateClientHeadForArticle = (article: Article) => {
   // Open Graph
   setMeta('property', 'og:site_name', portalName);
   setMeta('property', 'og:type', 'article');
-  setMeta('property', 'og:title', article.title);
+  setMeta('property', 'og:title', tituloDe(article));
   setMeta('property', 'og:description', description);
   setMeta('property', 'og:url', canonicalUrl);
   setMeta('property', 'og:image', imageUrl);
   setMeta('property', 'og:image:secure_url', imageUrl);
-  setMeta('property', 'og:image:alt', article.title);
+  setMeta('property', 'og:image:alt', tituloDe(article));
 
   // Twitter
   setMeta('name', 'twitter:card', 'summary_large_image');
-  setMeta('name', 'twitter:title', article.title);
+  setMeta('name', 'twitter:title', tituloDe(article));
   setMeta('name', 'twitter:description', description);
   setMeta('name', 'twitter:image', imageUrl);
 
